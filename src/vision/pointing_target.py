@@ -42,7 +42,10 @@ HAND_DEPTH_MIN_VALID_RATIO = min(
     1.0, max(0.0, float(os.environ.get("PI_HAND_DEPTH_MIN_VALID_RATIO", "0.35")))
 )
 HAND_MASK_DILATE_PX = max(
-    0, int(os.environ.get("PI_HAND_DEPTH_MASK_DILATE_PX", "18"))
+    0, int(os.environ.get("PI_HAND_DEPTH_MASK_DILATE_PX", "6"))
+)
+HAND_MASK_DEPTH_TOLERANCE_MM = max(
+    20.0, float(os.environ.get("PI_HAND_MASK_DEPTH_TOLERANCE_MM", "140"))
 )
 BACKGROUND_DEPTH_PATCH_RADIUS = max(
     1, int(os.environ.get("PI_BACKGROUND_DEPTH_PATCH_RADIUS", "4"))
@@ -63,6 +66,15 @@ BACKGROUND_DEPTH_HIT_TOLERANCE = min(
 )
 BACKGROUND_DEPTH_CONFIRM_STEPS = max(
     1, int(os.environ.get("PI_BACKGROUND_DEPTH_CONFIRM_STEPS", "3"))
+)
+
+HAND_CONNECTIONS = (
+    (0, 1), (1, 2), (2, 3), (3, 4),
+    (0, 5), (5, 6), (6, 7), (7, 8),
+    (0, 9), (9, 10), (10, 11), (11, 12),
+    (0, 13), (13, 14), (14, 15), (15, 16),
+    (0, 17), (17, 18), (18, 19), (19, 20),
+    (5, 9), (9, 13), (13, 17),
 )
 
 
@@ -366,6 +378,8 @@ class PointingTargetEstimator:
             "depth_source": "midas" if self.depth_est is not None else "none",
             "hand_depth_mm": None,
             "hand_depth_samples_mm": {},
+            "hand_depth_quality": {},
+            "hand_depth_points_px": {},
             "hand_depth_valid_ratio": 0.0,
             "hand_mask": None,
             "surface_depth_mm": None,
@@ -464,9 +478,13 @@ class PointingTargetEstimator:
                 interpolation=cv2.INTER_NEAREST,
             )
 
-        hand_mask = self._hand_mask(hand_landmarks.landmark)
-        samples, hand_depth_mm, valid_ratio = self._sample_hand_depth(
+        samples, quality, hand_depth_mm, valid_ratio = self._sample_hand_depth(
             depth_mm, points
+        )
+        hand_mask = self._hand_mask(
+            hand_landmarks.landmark,
+            depth_mm,
+            hand_depth_mm,
         )
         background_depth_mm = depth_mm.copy()
         background_depth_mm[hand_mask] = 0.0
@@ -500,6 +518,8 @@ class PointingTargetEstimator:
                 "depth_source": "gemini_metric",
                 "hand_depth_mm": hand_depth_mm,
                 "hand_depth_samples_mm": samples,
+                "hand_depth_quality": quality,
+                "hand_depth_points_px": points,
                 "hand_depth_valid_ratio": valid_ratio,
                 "hand_mask": hand_mask,
                 "surface_depth_mm": (
@@ -521,7 +541,7 @@ class PointingTargetEstimator:
         self._last_result = result
         return result
 
-    def _hand_mask(self, landmarks):
+    def _hand_mask(self, landmarks, depth_mm=None, hand_depth_mm=None):
         pixels = np.asarray(
             [
                 (
@@ -532,24 +552,67 @@ class PointingTargetEstimator:
             ],
             dtype=np.int32,
         )
-        mask = np.zeros((self.frame_h, self.frame_w), dtype=np.uint8)
-        if len(pixels) >= 3:
-            cv2.fillConvexPoly(mask, cv2.convexHull(pixels), 255)
+        core = np.zeros((self.frame_h, self.frame_w), dtype=np.uint8)
+        if len(pixels) < 21:
+            return core.astype(bool)
+
+        palm_width = float(np.linalg.norm(pixels[5] - pixels[17]))
+        line_width = max(3, int(round(palm_width * 0.18)))
+        joint_radius = max(2, int(round(line_width * 0.65)))
+
+        # Fill only the palm; model each finger as connected capsules instead
+        # of filling one convex hull around the entire hand.
+        palm = pixels[[0, 5, 9, 13, 17]]
+        cv2.fillConvexPoly(core, cv2.convexHull(palm), 255)
+        for start_index, end_index in HAND_CONNECTIONS:
+            cv2.line(
+                core,
+                tuple(pixels[start_index]),
+                tuple(pixels[end_index]),
+                255,
+                line_width,
+            )
+        for pixel in pixels:
+            cv2.circle(core, tuple(pixel), joint_radius, 255, -1)
+
+        support = core
         if HAND_MASK_DILATE_PX > 0:
             kernel_size = HAND_MASK_DILATE_PX * 2 + 1
             kernel = cv2.getStructuringElement(
                 cv2.MORPH_ELLIPSE, (kernel_size, kernel_size)
             )
-            mask = cv2.dilate(mask, kernel)
-        return mask.astype(bool)
+            support = cv2.dilate(core, kernel)
+
+        if depth_mm is None or hand_depth_mm is None:
+            return support.astype(bool)
+
+        tolerance = max(
+            HAND_MASK_DEPTH_TOLERANCE_MM,
+            float(hand_depth_mm) * 0.22,
+        )
+        depth_consistent = (
+            np.isfinite(depth_mm)
+            & (depth_mm > 0)
+            & (np.abs(depth_mm - float(hand_depth_mm)) <= tolerance)
+        )
+        return ((core > 0) | ((support > 0) & depth_consistent))
 
     def _sample_hand_depth(self, depth_mm, points):
         samples = {}
+        quality = {}
         valid_count = 0
         total_count = 0
+        previous_depth = None
+        radii = {
+            "wrist": HAND_DEPTH_SAMPLE_RADIUS,
+            "index_mcp": HAND_DEPTH_SAMPLE_RADIUS,
+            "index_pip": max(2, HAND_DEPTH_SAMPLE_RADIUS - 1),
+            "index_dip": max(2, HAND_DEPTH_SAMPLE_RADIUS - 2),
+            "index_tip": max(2, HAND_DEPTH_SAMPLE_RADIUS - 2),
+        }
         for name in ("wrist", "index_mcp", "index_pip", "index_dip", "index_tip"):
             x, y = points[name]
-            radius = HAND_DEPTH_SAMPLE_RADIUS
+            radius = radii[name]
             patch = depth_mm[
                 max(0, y - radius):min(self.frame_h, y + radius + 1),
                 max(0, x - radius):min(self.frame_w, x + radius + 1),
@@ -557,16 +620,51 @@ class PointingTargetEstimator:
             valid = patch[np.isfinite(patch) & (patch > 0)]
             valid_count += int(valid.size)
             total_count += int(patch.size)
-            samples[name] = float(np.median(valid)) if valid.size else None
+            if not valid.size:
+                samples[name] = None
+                quality[name] = {
+                    "valid_ratio": 0.0,
+                    "inlier_ratio": 0.0,
+                    "mad_mm": None,
+                    "reliable": False,
+                }
+                continue
 
-        valid_ratio = valid_count / max(1, total_count)
+            center = previous_depth if previous_depth is not None else float(np.median(valid))
+            tolerance = max(90.0, center * 0.18)
+            inliers = valid[np.abs(valid - center) <= tolerance]
+            min_inliers = max(3, int(math.ceil(valid.size * 0.25)))
+            reliable = inliers.size >= min_inliers
+            value = float(np.median(inliers)) if reliable else None
+            mad_mm = (
+                float(np.median(np.abs(inliers - value)))
+                if reliable
+                else None
+            )
+            samples[name] = value
+            quality[name] = {
+                "valid_ratio": float(valid.size / max(1, patch.size)),
+                "inlier_ratio": float(inliers.size / max(1, valid.size)),
+                "mad_mm": mad_mm,
+                "reliable": bool(reliable and mad_mm <= 60.0),
+            }
+            if quality[name]["reliable"]:
+                previous_depth = value
+
+        raw_valid_ratio = valid_count / max(1, total_count)
+        quality_ratio = sum(
+            item["valid_ratio"] * item["inlier_ratio"]
+            if item["reliable"]
+            else 0.0
+            for item in quality.values()
+        ) / max(1, len(quality))
         # Use proximal landmarks for the stage-4 ray origin. DIP/TIP are still
         # measured and reported, but their depth often contains background
         # bleed and is reserved for the quality-gated 3D-ray stage.
         proximal = [
             samples[name]
             for name in ("wrist", "index_mcp", "index_pip")
-            if samples[name] is not None
+            if samples[name] is not None and quality[name]["reliable"]
         ]
         proximal_center = float(np.median(proximal)) if proximal else None
         proximal_inliers = (
@@ -582,7 +680,7 @@ class PointingTargetEstimator:
         hand_depth = None
         if (
             len(proximal_inliers) >= 2
-            and valid_ratio >= HAND_DEPTH_MIN_VALID_RATIO
+            and raw_valid_ratio >= HAND_DEPTH_MIN_VALID_RATIO
         ):
             # The RGB ray starts at index MCP, so use its aligned metric depth
             # when it agrees with the robust proximal-hand estimate.
@@ -591,7 +689,7 @@ class PointingTargetEstimator:
                 hand_depth = float(mcp_depth)
             else:
                 hand_depth = float(np.median(proximal_inliers))
-        return samples, hand_depth, valid_ratio
+        return samples, quality, hand_depth, quality_ratio
 
     def _find_metric_background_hit(
         self, depth_mm, hand_mask, hand_depth_mm, start_px, tip_px
@@ -870,8 +968,8 @@ class PointingTargetEstimator:
     def _key_points(self, landmarks):
         def to_px(lm):
             return (
-                int(np.clip(lm.x, 0.0, 1.0) * self.frame_w),
-                int(np.clip(lm.y, 0.0, 1.0) * self.frame_h),
+                int(np.clip(lm.x, 0.0, 1.0) * (self.frame_w - 1)),
+                int(np.clip(lm.y, 0.0, 1.0) * (self.frame_h - 1)),
             )
 
         return {

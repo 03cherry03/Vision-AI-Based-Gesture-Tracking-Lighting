@@ -144,6 +144,8 @@ class PiSmartLightController:
         self.point_hand_mask = None
         self.point_hand_depth_mm = None
         self.point_hand_depth_samples_mm = {}
+        self.point_hand_depth_quality = {}
+        self.point_hand_depth_points_px = {}
         self.point_hand_depth_valid_ratio = 0.0
         self.point_surface_depth_mm = None
         self.point_ray_depth_mm = None
@@ -484,6 +486,8 @@ class PiSmartLightController:
         self.point_hand_mask = target.get("hand_mask")
         self.point_hand_depth_mm = target.get("hand_depth_mm")
         self.point_hand_depth_samples_mm = target.get("hand_depth_samples_mm", {})
+        self.point_hand_depth_quality = target.get("hand_depth_quality", {})
+        self.point_hand_depth_points_px = target.get("hand_depth_points_px", {})
         self.point_hand_depth_valid_ratio = float(
             target.get("hand_depth_valid_ratio", 0.0)
         )
@@ -716,6 +720,7 @@ class PiSmartLightController:
             "point_depth_source": self.point_depth_source,
             "point_hand_depth_mm": self.point_hand_depth_mm,
             "point_hand_depth_samples_mm": self.point_hand_depth_samples_mm,
+            "point_hand_depth_quality": self.point_hand_depth_quality,
             "point_hand_depth_valid_ratio": round(
                 self.point_hand_depth_valid_ratio, 3
             ),

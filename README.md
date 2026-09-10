@@ -175,7 +175,12 @@ During point mode, Gemini metric depth is sampled at the wrist and index-finger
 landmarks before the hand region is masked out of the background depth map.
 `PI_HAND_DEPTH_SAMPLE_RADIUS`, `PI_HAND_DEPTH_MIN_VALID_RATIO`, and
 `PI_HAND_DEPTH_MASK_DILATE_PX` tune that stage. With `PI_SHOW_DEPTH=1`, the
-excluded hand area is shown in red and the sampled hand distance is shown in mm.
+excluded hand area is shown as a translucent red skeleton/palm mask. Wrist,
+MCP, PIP, DIP, and TIP are sampled independently; green labels are reliable
+measurements and orange labels are rejected/low-quality measurements. The mask
+uses depth consistency instead of one convex hull, preserving finger shape and
+avoiding background pixels between widely separated fingers. Its depth gate is
+configured with `PI_HAND_MASK_DEPTH_TOLERANCE_MM`.
 
 Stage 4 searches along the RGB index-finger direction in the masked Gemini
 metric-depth image. It only accepts a target after several consecutive,
