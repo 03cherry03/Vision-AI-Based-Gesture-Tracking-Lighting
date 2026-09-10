@@ -140,20 +140,53 @@ python -m src.main
 
 | 변수 | 기본값 | 설명 |
 |---|---|---|
-| `PI_CAMERA_BACKEND` | `rpicam-vid` | `opencv` / `picamera2` / `rpicam-vid` |
+| `PI_CAMERA_BACKEND` | `rpicam-vid` | `orbbec` / `opencv` / `picamera2` / `rpicam-vid` |
 | `PI_CAM_INDEX` | `0` | OpenCV 백엔드일 때 카메라 인덱스 |
 | `PI_FRAME_W` / `PI_FRAME_H` | 640 / 360 | 처리 해상도 |
 | `PI_TARGET_FPS` | 20 | 카메라 목표 fps |
+| `PI_CAMERA_AF_MODE` | `continuous` | 연속 자동초점. `auto`(시작 시 1회)/`manual` 선택 가능 |
+| `PI_CAMERA_LENS_POSITION` | 비어 있음 | 수동 렌즈 위치(디옵터). 설정 시 고정 초점에 사용 |
 | `PI_SHOW_PREVIEW` | 1 | 프리뷰 창 표시 (성능 부담 있음) |
 | `PI_DEBUG` | 0 | STATE JSON + 후보 로그 |
 | `PI_ENABLE_FISHEYE` | 1 | fisheye 왜곡 보정 |
 | `PI_SERVO_PAN_SIGN` | +1 | 카메라↔서보 pan 방향 일치 시 +1, 반대면 -1 |
-| `PI_SERVO_TILT_SIGN` | -1 | tilt 부호. 짐벌 조립 방향에 따라 조정 |
+| `PI_SERVO_TILT_SIGN` | +1 | tilt 부호. 짐벌 조립 방향에 따라 조정 |
 
 디버그 실행 예:
 ```bash
 PI_DEBUG=1 PI_SHOW_PREVIEW=1 python -m src.main
 ```
+
+### Orbbec Gemini 2 runtime
+
+After installing OrbbecSDK and `pyorbbecsdk`, select the synchronized RGB-D
+backend explicitly:
+
+```bash
+PI_CAMERA_BACKEND=orbbec PI_ENABLE_FISHEYE=0 PI_SHOW_DEPTH=1 python -m src.main
+```
+
+The Orbbec backend uses aligned color/depth frames. Its defaults can be tuned
+with `PI_ORBBEC_COLOR_W`, `PI_ORBBEC_COLOR_H`, `PI_ORBBEC_DEPTH_W`,
+`PI_ORBBEC_DEPTH_H`, `PI_ORBBEC_TIMEOUT_MS`, and `PI_ORBBEC_HW_ALIGN`.
+Keep `PI_ENABLE_FISHEYE=0` until a Gemini 2-specific calibration is available.
+
+During point mode, Gemini metric depth is sampled at the wrist and index-finger
+landmarks before the hand region is masked out of the background depth map.
+`PI_HAND_DEPTH_SAMPLE_RADIUS`, `PI_HAND_DEPTH_MIN_VALID_RATIO`, and
+`PI_HAND_DEPTH_MASK_DILATE_PX` tune that stage. With `PI_SHOW_DEPTH=1`, the
+excluded hand area is shown in red and the sampled hand distance is shown in mm.
+
+Stage 4 searches along the RGB index-finger direction in the masked Gemini
+metric-depth image. It only accepts a target after several consecutive,
+low-noise depth patches agree that the estimated ray has reached a background
+surface. If no reliable surface is found, it reports a waiting state instead
+of projecting the target to a screen edge. Gemini color intrinsics are scaled
+to the runtime resolution (and mirrored when enabled) before converting a
+confirmed target to pan/tilt angles. Tuning variables are
+`PI_BACKGROUND_DEPTH_PATCH_RADIUS`, `PI_BACKGROUND_DEPTH_MIN_VALID_RATIO`,
+`PI_BACKGROUND_DEPTH_MAX_MAD_MM`, `PI_BACKGROUND_DEPTH_MAX_STEP_JUMP_MM`,
+`PI_BACKGROUND_DEPTH_HIT_TOLERANCE`, and `PI_BACKGROUND_DEPTH_CONFIRM_STEPS`.
 
 ---
 

@@ -4,6 +4,7 @@ import math
 import sys
 import shutil
 import subprocess
+import threading
 import time
 from collections import deque
 from pathlib import Path
@@ -14,7 +15,9 @@ import numpy as np
 
 from pi_runtime_config import (
     CAM_INDEX,
+    CAMERA_AF_MODE,
     CAMERA_BACKEND,
+    CAMERA_LENS_POSITION,
     DEBUG_OUTPUT,
     ENABLE_GESTURE_ZONE_ROI,
     ENABLE_HAND_SIZE_GATING,
@@ -32,19 +35,26 @@ from pi_runtime_config import (
     MP_DET_CONF,
     MP_TRK_CONF,
     MP_MODEL_COMPLEXITY,
+    ORBBEC_COLOR_HEIGHT,
+    ORBBEC_COLOR_WIDTH,
+    ORBBEC_DEPTH_HEIGHT,
+    ORBBEC_DEPTH_WIDTH,
+    ORBBEC_PREFER_HARDWARE_ALIGN,
+    ORBBEC_TIMEOUT_MS,
     ACTIVE_INFERENCE_FPS,
     STANDBY_INFERENCE_FPS,
     POINT_INFERENCE_FPS,
     PREVIEW_SCALE,
-    TRACK_ROI_SCALE,
+    ROI_INPUT_SIZE,
+    LATEST_FRAME_CAPTURE,
     TRACK_ROI_PADDING_RATIO,
+    TRACK_ROI_RETRY_EXPAND_RATIO,
     TRACK_ROI_TTL,
     FULL_FRAME_REACQUIRE_INTERVAL,
     YOLO_AFTER_MISSES,
     YOLO_REACQUIRE_INTERVAL,
     ROI_FALLBACK_AFTER_MISSES,
     ROI_FALLBACK_INTERVAL,
-    ROI_SCALE,
     SAVE_VIDEO,
     SAVE_VIDEO_FOURCC,
     SAVE_VIDEO_FPS,
@@ -60,7 +70,6 @@ from pi_runtime_config import (
     WAVE_MOTION_SPAN_RATIO,
     YOLO_CONFIDENCE,
     YOLO_ROI_PADDING_RATIO,
-    YOLO_ROI_SCALE,
 )
 from pi_runtime_config import PROJECT_ROOT
 
@@ -147,12 +156,70 @@ class RpicamVidCamera:
                 self.proc.kill()
 
 
+class LatestFrameCamera:
+    """Continuously capture and expose only the newest complete camera frame."""
+
+    def __init__(self, camera):
+        self.camera = camera
+        self.name = f"{camera.name}_latest"
+        self._condition = threading.Condition()
+        self._frame = None
+        self._sequence = 0
+        self._last_read_sequence = 0
+        self._stopped = False
+        self._thread = threading.Thread(target=self._capture_loop, daemon=True)
+        self._thread.start()
+
+    def _capture_loop(self):
+        while not self._stopped:
+            ok, frame = self.camera.read()
+            if not ok or frame is None:
+                if self._stopped:
+                    break
+                time.sleep(0.01)
+                continue
+            with self._condition:
+                self._frame = frame
+                self._sequence += 1
+                self._condition.notify_all()
+
+    def read(self, timeout=2.0):
+        deadline = time.monotonic() + timeout
+        with self._condition:
+            while (
+                not self._stopped
+                and self._sequence <= self._last_read_sequence
+            ):
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return False, None
+                self._condition.wait(timeout=remaining)
+            if self._frame is None:
+                return False, None
+            self._last_read_sequence = self._sequence
+            if isinstance(self._frame, np.ndarray):
+                return True, self._frame.copy()
+            return True, self._frame
+
+    def release(self):
+        self._stopped = True
+        with self._condition:
+            self._condition.notify_all()
+        self.camera.release()
+        self._thread.join(timeout=2.0)
+
+
 def open_camera():
     backend = CAMERA_BACKEND
     errors = []
-    if backend not in {"auto", "opencv", "picamera2", "rpicam-vid", "libcamera-vid"}:
+    if backend not in {"auto", "orbbec", "opencv", "picamera2", "rpicam-vid", "libcamera-vid"}:
         print(f"[PI] unknown PI_CAMERA_BACKEND={backend!r}; using auto", flush=True)
         backend = "auto"
+
+    if backend == "orbbec":
+        orbbec_camera = open_orbbec_camera(errors)
+        if orbbec_camera is not None:
+            return orbbec_camera
 
     if backend in {"auto", "opencv"}:
         opencv_camera = open_opencv_camera(errors)
@@ -178,6 +245,72 @@ def open_camera():
         flush=True,
     )
     raise RuntimeError("No camera backend produced frames")
+
+
+def open_orbbec_camera(errors):
+    try:
+        from src.vision.orbbec_camera import OrbbecCamera
+
+        camera = OrbbecCamera(
+            color_width=ORBBEC_COLOR_WIDTH,
+            color_height=ORBBEC_COLOR_HEIGHT,
+            depth_width=ORBBEC_DEPTH_WIDTH,
+            depth_height=ORBBEC_DEPTH_HEIGHT,
+            fps=TARGET_FPS,
+            timeout_ms=ORBBEC_TIMEOUT_MS,
+            prefer_hardware_align=ORBBEC_PREFER_HARDWARE_ALIGN,
+        )
+        ok, packet = camera.read()
+        if ok and packet is not None:
+            print(
+                f"[PI] camera opened with Orbbec Gemini 2 "
+                f"align={camera.alignment_mode}",
+                flush=True,
+            )
+            return camera
+        errors.append("orbbec: first_frame=False")
+        camera.release()
+    except Exception as e:
+        errors.append(f"orbbec open failed: {e}")
+    return None
+
+
+def split_camera_frame(captured):
+    """Normalize legacy BGR frames and Orbbec RGB-D packets."""
+    if isinstance(captured, np.ndarray):
+        return captured, None, None
+    color = getattr(captured, "color_bgr", None)
+    if color is None:
+        raise TypeError(f"Unsupported camera frame type: {type(captured).__name__}")
+    return (
+        color,
+        getattr(captured, "depth_mm", None),
+        getattr(captured, "intrinsics", None),
+    )
+
+
+def runtime_camera_intrinsics(intrinsics):
+    """Scale camera intrinsics to the processed frame and mirrored coordinates."""
+    if intrinsics is None:
+        return None
+    try:
+        source_width = float(intrinsics.width)
+        source_height = float(intrinsics.height)
+        if source_width <= 0 or source_height <= 0:
+            return None
+        scale_x = FRAME_W / source_width
+        scale_y = FRAME_H / source_height
+        cx = float(intrinsics.cx) * scale_x
+        if MIRROR:
+            cx = (FRAME_W - 1) - cx
+        return {
+            "fx": float(intrinsics.fx) * scale_x,
+            "fy": float(intrinsics.fy) * scale_y,
+            "cx": cx,
+            "cy": float(intrinsics.cy) * scale_y,
+        }
+    except (AttributeError, TypeError, ValueError):
+        return None
 
 
 def open_opencv_camera(errors):
@@ -283,6 +416,8 @@ def open_rpicam_vid(errors, backend):
             "--nopreview",
             "--codec",
             "mjpeg",
+            "--autofocus-mode",
+            CAMERA_AF_MODE,
             "--width",
             str(FRAME_W),
             "--height",
@@ -292,6 +427,8 @@ def open_rpicam_vid(errors, backend):
             "--output",
             "-",
         ]
+        if CAMERA_LENS_POSITION is not None:
+            cmd.extend(["--lens-position", str(CAMERA_LENS_POSITION)])
         try:
             proc = subprocess.Popen(
                 cmd,
@@ -327,6 +464,17 @@ def clamp_roi_box(box, frame_width, frame_height):
     x2 = max(x1 + 1, min(frame_width, int(x2)))
     y2 = max(y1 + 1, min(frame_height, int(y2)))
     return x1, y1, x2, y2
+
+
+def expand_roi_box(box, ratio, frame_width, frame_height):
+    x1, y1, x2, y2 = box
+    pad_x = (x2 - x1) * max(0.0, ratio)
+    pad_y = (y2 - y1) * max(0.0, ratio)
+    return clamp_roi_box(
+        (x1 - pad_x, y1 - pad_y, x2 + pad_x, y2 + pad_y),
+        frame_width,
+        frame_height,
+    )
 
 
 def gesture_zone_box(frame_width, frame_height):
@@ -430,7 +578,7 @@ def yolo_hand_box_from_box(controller, frame, search_box):
     pad = max(bx2 - bx1, by2 - by1) * YOLO_ROI_PADDING_RATIO
     return clamp_roi_box((bx1 - pad, by1 - pad, bx2 + pad, by2 + pad), frame_width, frame_height)
 
-def process_roi_with_landmark_remap(hands, frame_rgb, roi_box, roi_scale):
+def process_roi_with_landmark_remap(hands, frame_rgb, roi_box, input_size):
     frame_height, frame_width = frame_rgb.shape[:2]
     x1, y1, x2, y2 = clamp_roi_box(roi_box, frame_width, frame_height)
     roi = frame_rgb[y1:y2, x1:x2]
@@ -438,19 +586,35 @@ def process_roi_with_landmark_remap(hands, frame_rgb, roi_box, roi_scale):
         return None
 
     roi_height, roi_width = roi.shape[:2]
-    upscaled = cv2.resize(
+    input_size = max(64, int(input_size))
+    scale = min(input_size / roi_width, input_size / roi_height)
+    resized_width = max(1, int(round(roi_width * scale)))
+    resized_height = max(1, int(round(roi_height * scale)))
+    resized = cv2.resize(
         roi,
-        (roi_width * roi_scale, roi_height * roi_scale),
+        (resized_width, resized_height),
         interpolation=cv2.INTER_LINEAR,
     )
-    roi_results = hands.process(upscaled)
+    pad_x = (input_size - resized_width) // 2
+    pad_y = (input_size - resized_height) // 2
+    letterboxed = np.zeros((input_size, input_size, 3), dtype=roi.dtype)
+    letterboxed[
+        pad_y:pad_y + resized_height,
+        pad_x:pad_x + resized_width,
+    ] = resized
+
+    roi_results = hands.process(letterboxed)
     if not has_hand(roi_results):
         return None
 
     for hand_landmarks in roi_results.multi_hand_landmarks:
         for landmark in hand_landmarks.landmark:
-            landmark.x = (x1 + landmark.x * roi_width) / frame_width
-            landmark.y = (y1 + landmark.y * roi_height) / frame_height
+            model_x = landmark.x * input_size
+            model_y = landmark.y * input_size
+            crop_x = (model_x - pad_x) / scale
+            crop_y = (model_y - pad_y) / scale
+            landmark.x = float(np.clip((x1 + crop_x) / frame_width, 0.0, 1.0))
+            landmark.y = float(np.clip((y1 + crop_y) / frame_height, 0.0, 1.0))
     return roi_results
 
 
@@ -496,6 +660,7 @@ def print_status(payload):
         f"MODE={payload['mode']} "
         f"gesture={payload['gesture'] or '-'} hand={payload['hand_detected']} "
         f"point_mode={payload['point_mode']} point={payload['point_status']} "
+        f"depth={payload.get('point_depth_source', 'none')} "
         f"pan={payload['pan_deg']:+.1f} tilt={payload['tilt_deg']:+.1f} "
         f"fps={payload['fps']}",
         flush=True,
@@ -523,7 +688,7 @@ def print_status(payload):
 
 def draw_preview_overlay(frame, controller, fps, gesture, hand_detected, bbox, state):
     status = "STANDBY" if controller.standby else "ACTIVE"
-    panel_h = 150
+    panel_h = 174
     panel = frame.copy()
     panel[:] = (18, 18, 18)
     lines = [
@@ -532,6 +697,7 @@ def draw_preview_overlay(frame, controller, fps, gesture, hand_detected, bbox, s
         f"mode:{controller.mode} point_mode:{controller.point_mode} point:{controller.point_status} yolo:{controller.yolo_status}",
         f"wave:{state.get('wave_active')} span:{state.get('wave_motion_span', 0):.1f} turns:{state.get('wave_motion_turns', 0)} hits:{state.get('wave_open_palm_hits', 0)}/{state.get('wave_confirm_min_hits', 0)}",
         f"pan:{controller.preview_pan_deg:+.1f} tilt:{controller.preview_tilt_deg:+.1f} std:{controller.point_std_px:.0f}px",
+        f"depth:{controller.point_depth_source} hand:{controller.point_hand_depth_mm if controller.point_hand_depth_mm is not None else '-'}mm surface:{controller.point_surface_depth_mm if controller.point_surface_depth_mm is not None else '-'}mm valid:{controller.point_hand_depth_valid_ratio:.0%}",
     ]
     for i, text in enumerate(lines):
         cv2.putText(panel, text, (18, 30 + i * 24), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 0), 2)
@@ -541,8 +707,12 @@ def draw_preview_overlay(frame, controller, fps, gesture, hand_detected, bbox, s
         or controller.point_status in (
             "tracking",
             "tracking_depth",
+            "tracking_depth_waiting",
             "tracking_depth_fallback",
             "tracking_2d_fallback",
+            "tracking_gemini_depth_masked",
+            "tracking_gemini_depth_surface",
+            "tracking_gemini_depth_waiting",
             "locked",
         )
     )
@@ -659,7 +829,9 @@ def main():
 
     print(
         f"[PI] app.py algorithm runtime cam={CAM_INDEX} backend={CAMERA_BACKEND} "
-        f"{FRAME_W}x{FRAME_H}@{TARGET_FPS} mirror={MIRROR}",
+        f"{FRAME_W}x{FRAME_H}@{TARGET_FPS} mirror={MIRROR} "
+        f"af={CAMERA_AF_MODE} "
+        f"lens={CAMERA_LENS_POSITION if CAMERA_LENS_POSITION is not None else 'unset'}",
         flush=True,
     )
     print(
@@ -677,6 +849,15 @@ def main():
     }
     controller.start_preloads()
     cap = open_camera()
+    if CAMERA_BACKEND == "orbbec" and controller.undistorter is not None:
+        print(
+            "[PI] warning: PI_ENABLE_FISHEYE=1 uses the existing camera "
+            "calibration; set PI_ENABLE_FISHEYE=0 unless Gemini 2 was calibrated",
+            flush=True,
+        )
+    if LATEST_FRAME_CAPTURE:
+        cap = LatestFrameCamera(cap)
+        print("[PI] latest-frame capture enabled", flush=True)
     video_writer = None
 
     def _shutdown_hardware():
@@ -695,6 +876,11 @@ def main():
             cap.release()
         except Exception:
             pass
+        if controller.point_estimator is not None:
+            try:
+                controller.point_estimator.close()
+            except Exception:
+                pass
         if controller.servo is not None:
             try:
                 controller.servo.shutdown()
@@ -735,6 +921,7 @@ def main():
     last_hand_detected = False
     last_hand_bbox = 0
     last_gesture_state = controller.recognizer.extract_full_state(None)
+    last_display_gesture = None
     
     last_roi_fallback_time = 0.0
     skip_counter = 0
@@ -751,20 +938,37 @@ def main():
         min_detection_confidence=MP_DET_CONF,
         min_tracking_confidence=MP_TRK_CONF,
         max_num_hands=1,
-    ) as hands:
+    ) as full_hands, mp_hands.Hands(
+        static_image_mode=True,
+        model_complexity=MP_MODEL_COMPLEXITY,
+        min_detection_confidence=MP_DET_CONF,
+        min_tracking_confidence=MP_TRK_CONF,
+        max_num_hands=1,
+    ) as roi_hands:
         while True:
-            ok, frame = cap.read()
+            ok, captured = cap.read()
             if not ok:
                 print("[PI] camera read failed", flush=True)
                 time.sleep(0.1)
                 continue
 
+            frame, camera_depth_mm, camera_intrinsics = split_camera_frame(captured)
+            point_camera_intrinsics = runtime_camera_intrinsics(camera_intrinsics)
+
             frame = cv2.resize(frame, (FRAME_W, FRAME_H))
+            if camera_depth_mm is not None:
+                camera_depth_mm = cv2.resize(
+                    camera_depth_mm,
+                    (FRAME_W, FRAME_H),
+                    interpolation=cv2.INTER_NEAREST,
+                )
             # fisheye 보정을 mirror 이전에 적용 (캘리브레이션이 원본 방향 기준)
             if controller.undistorter is not None:
                 frame = controller.undistorter.undistort(frame)
             if MIRROR:
                 frame = cv2.flip(frame, 1)
+                if camera_depth_mm is not None:
+                    camera_depth_mm = cv2.flip(camera_depth_mm, 1)
             clean_frame = frame.copy()
 
             now = time.time()
@@ -781,6 +985,7 @@ def main():
                 skip_counter = 0
                 
             gesture = None
+            display_gesture = last_display_gesture if last_hand_detected else None
             results = last_results
             results_updated = False
             hand_detected = last_hand_detected
@@ -898,18 +1103,39 @@ def main():
 
                     if tracked_roi_valid:
                         roi_results = process_roi_with_landmark_remap(
-                            hands,
+                            roi_hands,
                             frame_rgb,
                             last_hand_roi_box,
-                            TRACK_ROI_SCALE,
+                            ROI_INPUT_SIZE,
                         )
                         if has_hand(roi_results):
                             new_results = roi_results
                             processing_mode = "tracked_hand_roi"
                             roi_box = last_hand_roi_box
-                            roi_scale = TRACK_ROI_SCALE
+                            roi_scale = ROI_INPUT_SIZE
 
-                    # 2) If tracked ROI failed, try motion ROI with MediaPipe.
+                    # 2) Retry once with an expanded tracked ROI before falling
+                    # back to motion/full-frame reacquisition.
+                    if tracked_roi_valid and new_results is None:
+                        expanded_roi_box = expand_roi_box(
+                            last_hand_roi_box,
+                            TRACK_ROI_RETRY_EXPAND_RATIO,
+                            frame_width,
+                            frame_height,
+                        )
+                        roi_results = process_roi_with_landmark_remap(
+                            roi_hands,
+                            frame_rgb,
+                            expanded_roi_box,
+                            ROI_INPUT_SIZE,
+                        )
+                        if has_hand(roi_results):
+                            new_results = roi_results
+                            processing_mode = "expanded_hand_roi"
+                            roi_box = expanded_roi_box
+                            roi_scale = ROI_INPUT_SIZE
+
+                    # 3) If tracked ROI failed, try motion ROI with MediaPipe.
                     if (
                         new_results is None
                         and ENABLE_MOTION_ROI
@@ -918,20 +1144,20 @@ def main():
                         and (ENABLE_POINT_ROI or not controller.point_mode)
                     ):
                         roi_results = process_roi_with_landmark_remap(
-                            hands,
+                            roi_hands,
                             frame_rgb,
                             motion_roi_box,
-                            ROI_SCALE,
+                            ROI_INPUT_SIZE,
                         )
                         motion_roi_used = True
                         roi_box = motion_roi_box
-                        roi_scale = ROI_SCALE
+                        roi_scale = ROI_INPUT_SIZE
 
                         if has_hand(roi_results):
                             new_results = roi_results
                             processing_mode = "motion_roi"
 
-                    # 3) If still no hand, use YOLO as a reacquire detector.
+                    # 4) If still no hand, use YOLO as a reacquire detector.
                     should_try_yolo = (
                         new_results is None
                         and (ENABLE_POINT_YOLO_ROI or not controller.point_mode)
@@ -956,22 +1182,22 @@ def main():
                         if yolo_roi_box is not None:
                             yolo_roi_used = True
                             roi_box = yolo_roi_box
-                            roi_scale = YOLO_ROI_SCALE
+                            roi_scale = ROI_INPUT_SIZE
 
                             roi_results = process_roi_with_landmark_remap(
-                                hands,
+                                roi_hands,
                                 frame_rgb,
                                 yolo_roi_box,
-                                YOLO_ROI_SCALE,
+                                ROI_INPUT_SIZE,
                             )
                             if has_hand(roi_results):
                                 new_results = roi_results
                                 processing_mode = "yolo_reacquire_roi"
 
-                    # 4) Full-frame reacquire periodically or when all ROI paths fail.
+                    # 5) Full-frame reacquire periodically or when all ROI paths fail.
                     if new_results is None:
                         processing_mode = "full_frame"
-                        new_results = hands.process(frame_rgb)
+                        new_results = full_hands.process(frame_rgb)
                         last_full_frame_time = now_infer
 
                     results = new_results
@@ -1027,12 +1253,19 @@ def main():
                         else controller.recognizer.extract_full_state(None)
                     )
                     last_gesture_state = state.copy()
+                    display_gesture = state.get("gesture") if hand_detected else None
+                    last_display_gesture = display_gesture
                 else:
                     state = (
                         last_gesture_state.copy()
                         if isinstance(last_gesture_state, dict)
                         else controller.recognizer.extract_full_state(None)
                     )
+
+                    # Keep showing the last recognized pose on capture frames
+                    # where inference was intentionally skipped. Commands are
+                    # still suppressed below, so this cannot replay actions.
+                    display_gesture = state.get("gesture") if hand_detected else None
 
                     # Do not replay most gestures on skipped frames,
                     # because brightness/mode commands could repeat.
@@ -1097,14 +1330,22 @@ def main():
                     state["confirmed_gesture"] = None
                     current_gesture = None
 
-                gesture = controller.apply_gesture(current_gesture, results, clean_frame, is_shaking)
+                gesture = controller.apply_gesture(
+                    current_gesture,
+                    results,
+                    clean_frame,
+                    is_shaking,
+                    sample_updated=results_updated,
+                    depth_mm=camera_depth_mm,
+                    camera_intrinsics=point_camera_intrinsics,
+                )
                 dispatch_hardware(led, controller, gesture, hw_state)
 
                 state.update(
                     {
                         "python_standby": controller.standby,
                         "point_mode_enabled": controller.point_mode,
-                        "keep_awake_for_testing": controller.state_payload(fps, gesture, hand_detected, hand_bbox, is_shaking)["keep_awake"],
+                        "keep_awake_for_testing": controller.state_payload(fps, display_gesture, hand_detected, hand_bbox, is_shaking)["keep_awake"],
                         "active_hold_remaining": max(0.0, controller.active_until - time.time()) if not controller.standby else 0.0,
                         "motion_score": motion_score,
                         "wave_motion_active": is_shaking,
@@ -1123,6 +1364,13 @@ def main():
                         "hand_bbox_width_px": hand_bbox,
                         "fine_gesture_allowed": fine_gesture_allowed,
                         "tick_gesture_allowed": tick_gesture_allowed,
+                        "camera_depth_available": camera_depth_mm is not None,
+                        "camera_depth_valid_ratio": (
+                            round(float(np.count_nonzero(camera_depth_mm > 0)) / camera_depth_mm.size, 3)
+                            if camera_depth_mm is not None and camera_depth_mm.size
+                            else 0.0
+                        ),
+                        "camera_intrinsics_available": camera_intrinsics is not None,
                     }
                 )
 
@@ -1130,6 +1378,9 @@ def main():
             else:
                 controller.update_activity_timeout(False)
                 last_state = state
+                if not hand_detected:
+                    last_display_gesture = None
+                    display_gesture = None
                 
             # Draw cached landmarks on every preview frame to reduce flicker.
             if SHOW_PREVIEW or (SAVE_VIDEO and SAVE_VIDEO_OVERLAY):
@@ -1144,7 +1395,13 @@ def main():
                     )
             if now - last_status >= STATUS_INTERVAL:
                 last_status = now
-                payload = controller.state_payload(fps, gesture, hand_detected, hand_bbox, last_state.get("wave_motion_active", False))
+                payload = controller.state_payload(
+                    fps,
+                    display_gesture,
+                    hand_detected,
+                    hand_bbox,
+                    last_state.get("wave_motion_active", False),
+                )
                 payload.update(
                     {
                         "processing_mode": last_state.get("processing_mode"),
@@ -1156,6 +1413,11 @@ def main():
                         "gesture_zone_used": last_state.get("gesture_zone_used", False),
                         "yolo_roi_used": last_state.get("yolo_roi_used", False),
                         "motion_roi_used": last_state.get("motion_roi_used", False),
+                        "camera_depth_available": last_state.get("camera_depth_available", False),
+                        "camera_depth_valid_ratio": last_state.get("camera_depth_valid_ratio", 0.0),
+                        "camera_intrinsics_available": last_state.get(
+                            "camera_intrinsics_available", False
+                        ),
                         "roi_box": last_state.get("roi_box"),
                         "roi_scale": last_state.get("roi_scale", 1),
                         "index_open": last_state.get("index_open", False),
@@ -1181,7 +1443,15 @@ def main():
 
             preview = None
             if SHOW_PREVIEW or (SAVE_VIDEO and SAVE_VIDEO_OVERLAY):
-                preview = draw_preview_overlay(frame.copy(), controller, fps, gesture, hand_detected, hand_bbox, last_state)
+                preview = draw_preview_overlay(
+                    frame.copy(),
+                    controller,
+                    fps,
+                    display_gesture,
+                    hand_detected,
+                    hand_bbox,
+                    last_state,
+                )
 
             if SAVE_VIDEO:
                 video_frame = preview if SAVE_VIDEO_OVERLAY else frame
@@ -1198,8 +1468,55 @@ def main():
                     preview_window_sized = True
                 cv2.imshow(PREVIEW_WINDOW_NAME, display_preview)
 
-            if SHOW_DEPTH and controller.point_depth_map is not None:
-                depth_preview = depth_map_to_preview(controller.point_depth_map)
+            display_depth = (
+                camera_depth_mm
+                if camera_depth_mm is not None
+                else controller.point_depth_map
+            )
+            if SHOW_DEPTH and display_depth is not None:
+                if camera_depth_mm is not None:
+                    valid = camera_depth_mm > 0
+                    depth_visual = np.zeros_like(camera_depth_mm, dtype=np.float32)
+                    if np.any(valid):
+                        near, far = np.percentile(camera_depth_mm[valid], (2, 98))
+                        if far > near:
+                            depth_visual[valid] = 1.0 - np.clip(
+                                (camera_depth_mm[valid] - near) / (far - near), 0.0, 1.0
+                            )
+                    depth_preview = depth_map_to_preview(depth_visual)
+                    hand_mask = controller.point_hand_mask
+                    if (
+                        controller.point_mode
+                        and hand_mask is not None
+                        and hand_mask.shape == camera_depth_mm.shape
+                    ):
+                        depth_preview[hand_mask] = (0, 0, 255)
+                        hand_depth = controller.point_hand_depth_mm
+                        label = (
+                            f"HAND EXCLUDED ({hand_depth:.0f} mm sampled)"
+                            if hand_depth is not None
+                            else "HAND EXCLUDED (depth unreliable)"
+                        )
+                        cv2.putText(
+                            depth_preview,
+                            label,
+                            (12, 28),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.6,
+                            (255, 255, 255),
+                            2,
+                        )
+                    if controller.point_ray_hit_px is not None:
+                        hit_x, hit_y = controller.point_ray_hit_px
+                        cv2.circle(
+                            depth_preview,
+                            (int(hit_x), int(hit_y)),
+                            12,
+                            (0, 255, 255),
+                            2,
+                        )
+                else:
+                    depth_preview = depth_map_to_preview(display_depth)
                 if not depth_window_sized:
                     cv2.namedWindow(DEPTH_WINDOW_NAME, cv2.WINDOW_NORMAL)
                     height, width = depth_preview.shape[:2]

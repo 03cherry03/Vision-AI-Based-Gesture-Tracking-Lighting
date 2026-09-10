@@ -1,0 +1,15 @@
+{
+  "frame_size": [640, 360],
+  "mode": "residual_2d",
+  "points": [
+    {"x": 107, "y": 60, "pan_correction_deg": 0.0, "tilt_correction_deg": 0.0},
+    {"x": 320, "y": 60, "pan_correction_deg": 0.0, "tilt_correction_deg": 0.0},
+    {"x": 533, "y": 60, "pan_correction_deg": 0.0, "tilt_correction_deg": 0.0},
+    {"x": 107, "y": 180, "pan_correction_deg": 0.0, "tilt_correction_deg": 0.0},
+    {"x": 320, "y": 180, "pan_correction_deg": 0.0, "tilt_correction_deg": 0.0},
+    {"x": 533, "y": 180, "pan_correction_deg": 0.0, "tilt_correction_deg": 0.0},
+    {"x": 107, "y": 300, "pan_correction_deg": 0.0, "tilt_correction_deg": 0.0},
+    {"x": 320, "y": 300, "pan_correction_deg": 0.0, "tilt_correction_deg": 0.0},
+    {"x": 533, "y": 300, "pan_correction_deg": 0.0, "tilt_correction_deg": 0.0}
+  ]
+}
