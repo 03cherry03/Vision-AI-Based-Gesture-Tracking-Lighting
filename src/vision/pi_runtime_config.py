@@ -28,6 +28,18 @@ CAMERA_BACKEND = os.environ.get("PI_CAMERA_BACKEND", "rpicam-vid").lower()
 FRAME_W = int(os.environ.get("PI_FRAME_W", "640"))
 FRAME_H = int(os.environ.get("PI_FRAME_H", "360"))
 TARGET_FPS = int(os.environ.get("PI_TARGET_FPS", "20"))
+CAMERA_AF_MODE = os.environ.get("PI_CAMERA_AF_MODE", "continuous").strip().lower()
+if CAMERA_AF_MODE not in {"default", "manual", "auto", "continuous"}:
+    CAMERA_AF_MODE = "continuous"
+_LENS_POSITION_RAW = os.environ.get("PI_CAMERA_LENS_POSITION", "").strip()
+try:
+    CAMERA_LENS_POSITION = (
+        float(_LENS_POSITION_RAW) if _LENS_POSITION_RAW else None
+    )
+except ValueError:
+    CAMERA_LENS_POSITION = None
+if CAMERA_LENS_POSITION is not None:
+    CAMERA_AF_MODE = "manual"
 MIRROR = os.environ.get("PI_MIRROR", "1") != "0"
 SHOW_PREVIEW = os.environ.get("PI_SHOW_PREVIEW", "1") == "1"
 PREVIEW_SCALE = max(0.1, float(os.environ.get("PI_PREVIEW_SCALE", "1.0")))
@@ -42,8 +54,8 @@ SAVE_VIDEO_FOURCC = os.environ.get("PI_SAVE_VIDEO_FOURCC", "mp4v")
 SAVE_VIDEO_FPS = float(os.environ.get("PI_SAVE_VIDEO_FPS", str(TARGET_FPS)))
 SAVE_VIDEO_OVERLAY = os.environ.get("PI_SAVE_VIDEO_OVERLAY", "1") != "0"
 
-MP_DET_CONF = float(os.environ.get("PI_MP_DET_CONF", "0.30"))
-MP_TRK_CONF = float(os.environ.get("PI_MP_TRK_CONF", "0.30"))
+MP_DET_CONF = float(os.environ.get("PI_MP_DET_CONF", "0.50"))
+MP_TRK_CONF = float(os.environ.get("PI_MP_TRK_CONF", "0.50"))
 
 # MediaPipe Hands model.
 # 0 = lite / faster, 1 = full / default-ish, 2 = heavier if supported.
@@ -79,15 +91,18 @@ YOLO_ROI_PADDING_RATIO = float(os.environ.get("PI_YOLO_ROI_PADDING", "0.25"))
 # 기본 ROI (Tracked hand ROI): once a hand is found, use this smaller ROI first.
 TRACK_ROI_SCALE = int(os.environ.get("PI_TRACK_ROI_SCALE", "2"))
 TRACK_ROI_PADDING_RATIO = float(os.environ.get("PI_TRACK_ROI_PADDING", "0.65"))
+TRACK_ROI_RETRY_EXPAND_RATIO = float(os.environ.get("PI_TRACK_ROI_RETRY_EXPAND", "0.55"))
 TRACK_ROI_TTL = float(os.environ.get("PI_TRACK_ROI_TTL", "1.0"))
 FULL_FRAME_REACQUIRE_INTERVAL = float(os.environ.get("PI_FULL_FRAME_REACQUIRE_INTERVAL", "0.50"))
+ROI_INPUT_SIZE = max(128, int(os.environ.get("PI_ROI_INPUT_SIZE", "320")))
+LATEST_FRAME_CAPTURE = os.environ.get("PI_LATEST_FRAME_CAPTURE", "1") != "0"
 
 # YOLO should be used as a reacquire detector, not every frame.
 YOLO_REACQUIRE_INTERVAL = float(os.environ.get("PI_YOLO_REACQUIRE_INTERVAL", "0.70"))
 YOLO_AFTER_MISSES = int(os.environ.get("PI_YOLO_AFTER_MISSES", "2"))
 
 ENABLE_GESTURE_ZONE_ROI = os.environ.get("PI_ENABLE_GESTURE_ZONE_ROI", "1") != "0"
-ENABLE_MOTION_ROI = os.environ.get("PI_ENABLE_MOTION_ROI", "1") != "0"
+ENABLE_MOTION_ROI = os.environ.get("PI_ENABLE_MOTION_ROI", "0") != "0"
 GESTURE_ZONE = {
     "x_min_ratio": float(os.environ.get("PI_GESTURE_ZONE_X_MIN", "0.10")),
     "y_min_ratio": float(os.environ.get("PI_GESTURE_ZONE_Y_MIN", "0.05")),
@@ -146,3 +161,21 @@ POINT_TILT_GAIN = float(os.environ.get("PI_POINT_TILT_GAIN", "1.0"))
 
 POINT_PAN_OFFSET_DEG = float(os.environ.get("PI_POINT_PAN_OFFSET_DEG", "0.0"))
 POINT_TILT_OFFSET_DEG = float(os.environ.get("PI_POINT_TILT_OFFSET_DEG", "0.0"))
+
+# Point-mode transition and optional pointing implementations.
+POINT_ENTRY_GRACE_SECONDS = float(os.environ.get("PI_POINT_ENTRY_GRACE_SECONDS", "1.0"))
+POINT_ARM_WINDOW = max(1, int(os.environ.get("PI_POINT_ARM_WINDOW", "5")))
+POINT_ARM_MIN_HITS = min(
+    POINT_ARM_WINDOW,
+    max(1, int(os.environ.get("PI_POINT_ARM_MIN_HITS", "3"))),
+)
+POINT_RAY_MODE = os.environ.get("PI_POINT_RAY_MODE", "world_3d").strip().lower()
+
+# Optional pixel-to-servo lookup calibration. Missing files fall back to
+# center/gain/offset conversion.
+SERVO_POINTING_CALIB_PATH = resolve_project_path(
+    os.environ.get(
+        "PI_SERVO_POINTING_CALIB",
+        "src/calibration/servo_pointing_calibration.json",
+    )
+)
