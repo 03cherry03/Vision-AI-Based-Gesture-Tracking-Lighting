@@ -289,6 +289,30 @@ def split_camera_frame(captured):
     )
 
 
+def runtime_camera_intrinsics(intrinsics):
+    """Scale camera intrinsics to the processed frame and mirrored coordinates."""
+    if intrinsics is None:
+        return None
+    try:
+        source_width = float(intrinsics.width)
+        source_height = float(intrinsics.height)
+        if source_width <= 0 or source_height <= 0:
+            return None
+        scale_x = FRAME_W / source_width
+        scale_y = FRAME_H / source_height
+        cx = float(intrinsics.cx) * scale_x
+        if MIRROR:
+            cx = (FRAME_W - 1) - cx
+        return {
+            "fx": float(intrinsics.fx) * scale_x,
+            "fy": float(intrinsics.fy) * scale_y,
+            "cx": cx,
+            "cy": float(intrinsics.cy) * scale_y,
+        }
+    except (AttributeError, TypeError, ValueError):
+        return None
+
+
 def open_opencv_camera(errors):
     if isinstance(CAM_INDEX, int):
         api_candidates = [
@@ -673,7 +697,7 @@ def draw_preview_overlay(frame, controller, fps, gesture, hand_detected, bbox, s
         f"mode:{controller.mode} point_mode:{controller.point_mode} point:{controller.point_status} yolo:{controller.yolo_status}",
         f"wave:{state.get('wave_active')} span:{state.get('wave_motion_span', 0):.1f} turns:{state.get('wave_motion_turns', 0)} hits:{state.get('wave_open_palm_hits', 0)}/{state.get('wave_confirm_min_hits', 0)}",
         f"pan:{controller.preview_pan_deg:+.1f} tilt:{controller.preview_tilt_deg:+.1f} std:{controller.point_std_px:.0f}px",
-        f"depth:{controller.point_depth_source} hand_depth:{controller.point_hand_depth_mm if controller.point_hand_depth_mm is not None else '-'}mm valid:{controller.point_hand_depth_valid_ratio:.0%}",
+        f"depth:{controller.point_depth_source} hand:{controller.point_hand_depth_mm if controller.point_hand_depth_mm is not None else '-'}mm surface:{controller.point_surface_depth_mm if controller.point_surface_depth_mm is not None else '-'}mm valid:{controller.point_hand_depth_valid_ratio:.0%}",
     ]
     for i, text in enumerate(lines):
         cv2.putText(panel, text, (18, 30 + i * 24), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 0), 2)
@@ -687,6 +711,8 @@ def draw_preview_overlay(frame, controller, fps, gesture, hand_detected, bbox, s
             "tracking_depth_fallback",
             "tracking_2d_fallback",
             "tracking_gemini_depth_masked",
+            "tracking_gemini_depth_surface",
+            "tracking_gemini_depth_waiting",
             "locked",
         )
     )
@@ -927,6 +953,7 @@ def main():
                 continue
 
             frame, camera_depth_mm, camera_intrinsics = split_camera_frame(captured)
+            point_camera_intrinsics = runtime_camera_intrinsics(camera_intrinsics)
 
             frame = cv2.resize(frame, (FRAME_W, FRAME_H))
             if camera_depth_mm is not None:
@@ -1310,6 +1337,7 @@ def main():
                     is_shaking,
                     sample_updated=results_updated,
                     depth_mm=camera_depth_mm,
+                    camera_intrinsics=point_camera_intrinsics,
                 )
                 dispatch_hardware(led, controller, gesture, hw_state)
 
@@ -1476,6 +1504,15 @@ def main():
                             cv2.FONT_HERSHEY_SIMPLEX,
                             0.6,
                             (255, 255, 255),
+                            2,
+                        )
+                    if controller.point_ray_hit_px is not None:
+                        hit_x, hit_y = controller.point_ray_hit_px
+                        cv2.circle(
+                            depth_preview,
+                            (int(hit_x), int(hit_y)),
+                            12,
+                            (0, 255, 255),
                             2,
                         )
                 else:

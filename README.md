@@ -177,6 +177,17 @@ landmarks before the hand region is masked out of the background depth map.
 `PI_HAND_DEPTH_MASK_DILATE_PX` tune that stage. With `PI_SHOW_DEPTH=1`, the
 excluded hand area is shown in red and the sampled hand distance is shown in mm.
 
+Stage 4 searches along the RGB index-finger direction in the masked Gemini
+metric-depth image. It only accepts a target after several consecutive,
+low-noise depth patches agree that the estimated ray has reached a background
+surface. If no reliable surface is found, it reports a waiting state instead
+of projecting the target to a screen edge. Gemini color intrinsics are scaled
+to the runtime resolution (and mirrored when enabled) before converting a
+confirmed target to pan/tilt angles. Tuning variables are
+`PI_BACKGROUND_DEPTH_PATCH_RADIUS`, `PI_BACKGROUND_DEPTH_MIN_VALID_RATIO`,
+`PI_BACKGROUND_DEPTH_MAX_MAD_MM`, `PI_BACKGROUND_DEPTH_MAX_STEP_JUMP_MM`,
+`PI_BACKGROUND_DEPTH_HIT_TOLERANCE`, and `PI_BACKGROUND_DEPTH_CONFIRM_STEPS`.
+
 ---
 
 ### 5. 최신 코드 받기

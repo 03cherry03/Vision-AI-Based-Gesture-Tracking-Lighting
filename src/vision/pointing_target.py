@@ -44,6 +44,26 @@ HAND_DEPTH_MIN_VALID_RATIO = min(
 HAND_MASK_DILATE_PX = max(
     0, int(os.environ.get("PI_HAND_DEPTH_MASK_DILATE_PX", "18"))
 )
+BACKGROUND_DEPTH_PATCH_RADIUS = max(
+    1, int(os.environ.get("PI_BACKGROUND_DEPTH_PATCH_RADIUS", "4"))
+)
+BACKGROUND_DEPTH_MIN_VALID_RATIO = min(
+    1.0,
+    max(0.0, float(os.environ.get("PI_BACKGROUND_DEPTH_MIN_VALID_RATIO", "0.55"))),
+)
+BACKGROUND_DEPTH_MAX_MAD_MM = max(
+    1.0, float(os.environ.get("PI_BACKGROUND_DEPTH_MAX_MAD_MM", "80"))
+)
+BACKGROUND_DEPTH_MAX_STEP_JUMP_MM = max(
+    1.0, float(os.environ.get("PI_BACKGROUND_DEPTH_MAX_STEP_JUMP_MM", "160"))
+)
+BACKGROUND_DEPTH_HIT_TOLERANCE = min(
+    0.5,
+    max(0.0, float(os.environ.get("PI_BACKGROUND_DEPTH_HIT_TOLERANCE", "0.08"))),
+)
+BACKGROUND_DEPTH_CONFIRM_STEPS = max(
+    1, int(os.environ.get("PI_BACKGROUND_DEPTH_CONFIRM_STEPS", "3"))
+)
 
 
 class DepthEstimator:
@@ -348,10 +368,21 @@ class PointingTargetEstimator:
             "hand_depth_samples_mm": {},
             "hand_depth_valid_ratio": 0.0,
             "hand_mask": None,
+            "surface_depth_mm": None,
+            "ray_depth_mm": None,
+            "surface_valid_ratio": 0.0,
         }
 
-    def update(self, frame_bgr, hand_landmarks, depth_mm=None):
+    def update(
+        self,
+        frame_bgr,
+        hand_landmarks,
+        depth_mm=None,
+        camera_intrinsics=None,
+    ):
         self.frame_count += 1
+        if camera_intrinsics is not None:
+            self._set_camera_intrinsics(camera_intrinsics)
         points = self._key_points(hand_landmarks.landmark)
         ray_start, ray_tip = self._ray_segment(points)
 
@@ -397,6 +428,26 @@ class PointingTargetEstimator:
         self._last_result = result
         return result
 
+    def _set_camera_intrinsics(self, intrinsics):
+        """Apply intrinsics already scaled to the runtime RGB frame."""
+        try:
+            fx = float(intrinsics["fx"])
+            fy = float(intrinsics["fy"])
+            cx = float(intrinsics["cx"])
+            cy = float(intrinsics["cy"])
+        except (KeyError, TypeError, ValueError):
+            return
+        if fx <= 0 or fy <= 0:
+            return
+        self.cam_fx = fx
+        self.cam_fy = fy
+        self.cx = cx
+        self.cy = cy
+        self.tracker.fx = fx
+        self.tracker.fy = fy
+        self.tracker.cx = cx
+        self.tracker.cy = cy
+
     def _update_from_metric_depth(
         self, depth_mm, hand_landmarks, points, ray_start, ray_tip
     ):
@@ -420,10 +471,15 @@ class PointingTargetEstimator:
         background_depth_mm = depth_mm.copy()
         background_depth_mm[hand_mask] = 0.0
 
-        # Background collision is introduced in stage 4. Until then, retain
-        # the proven RGB ray-to-screen fallback while exposing real hand depth.
-        raw_target = self._project_to_screen_edge(ray_start, ray_tip)
-        result = self.tracker.update(raw_target, True)
+        hit = self._find_metric_background_hit(
+            depth_mm,
+            hand_mask,
+            hand_depth_mm,
+            ray_start,
+            ray_tip,
+        )
+        raw_target = hit["target"] if hit is not None else None
+        result = self.tracker.update(raw_target, raw_target is not None)
         result.update(
             {
                 "raw_target": raw_target,
@@ -431,8 +487,12 @@ class PointingTargetEstimator:
                 "ray_tip_px": ray_tip,
                 "calibrated": True,
                 "depth_available": True,
-                "used_depth_hit": False,
-                "hit_method": "2d_fallback_gemini_depth_masked",
+                "used_depth_hit": raw_target is not None,
+                "hit_method": (
+                    "gemini_metric_background_hit"
+                    if raw_target is not None
+                    else "gemini_metric_no_surface"
+                ),
                 "depth_error": None,
                 "depth_map": background_depth_mm,
                 "async_pending": False,
@@ -442,6 +502,19 @@ class PointingTargetEstimator:
                 "hand_depth_samples_mm": samples,
                 "hand_depth_valid_ratio": valid_ratio,
                 "hand_mask": hand_mask,
+                "surface_depth_mm": (
+                    hit["surface_depth_mm"] if hit is not None else None
+                ),
+                "ray_depth_mm": hit["ray_depth_mm"] if hit is not None else None,
+                "surface_valid_ratio": (
+                    hit["valid_ratio"] if hit is not None else 0.0
+                ),
+                "camera_intrinsics": {
+                    "fx": self.cam_fx,
+                    "fy": self.cam_fy,
+                    "cx": self.cx,
+                    "cy": self.cy,
+                },
             }
         )
         self.depth_map = background_depth_mm
@@ -487,15 +560,126 @@ class PointingTargetEstimator:
             samples[name] = float(np.median(valid)) if valid.size else None
 
         valid_ratio = valid_count / max(1, total_count)
-        reliable = [
-            value for value in samples.values() if value is not None
+        # Use proximal landmarks for the stage-4 ray origin. DIP/TIP are still
+        # measured and reported, but their depth often contains background
+        # bleed and is reserved for the quality-gated 3D-ray stage.
+        proximal = [
+            samples[name]
+            for name in ("wrist", "index_mcp", "index_pip")
+            if samples[name] is not None
         ]
-        hand_depth = (
-            float(np.median(reliable))
-            if reliable and valid_ratio >= HAND_DEPTH_MIN_VALID_RATIO
-            else None
+        proximal_center = float(np.median(proximal)) if proximal else None
+        proximal_inliers = (
+            [
+                value
+                for value in proximal
+                if abs(value - proximal_center)
+                <= max(120.0, proximal_center * 0.25)
+            ]
+            if proximal_center is not None
+            else []
         )
+        hand_depth = None
+        if (
+            len(proximal_inliers) >= 2
+            and valid_ratio >= HAND_DEPTH_MIN_VALID_RATIO
+        ):
+            # The RGB ray starts at index MCP, so use its aligned metric depth
+            # when it agrees with the robust proximal-hand estimate.
+            mcp_depth = samples["index_mcp"]
+            if mcp_depth in proximal_inliers:
+                hand_depth = float(mcp_depth)
+            else:
+                hand_depth = float(np.median(proximal_inliers))
         return samples, hand_depth, valid_ratio
+
+    def _find_metric_background_hit(
+        self, depth_mm, hand_mask, hand_depth_mm, start_px, tip_px
+    ):
+        """Find the first stable metric-depth surface along the RGB finger ray.
+
+        This is a 2.5D stage: the image direction comes from RGB landmarks and
+        the ray distance grows from the measured hand depth. Joint-to-joint 3D
+        direction is deliberately deferred until landmark depth is reliable.
+        """
+        if hand_depth_mm is None or not np.isfinite(hand_depth_mm):
+            return None
+
+        mx, my = start_px
+        tx, ty = tip_px
+        dx = tx - mx
+        dy = ty - my
+        finger_length_px = math.hypot(dx, dy)
+        if finger_length_px < 1.0:
+            return None
+
+        ux = dx / finger_length_px
+        uy = dy / finger_length_px
+        start_offset = finger_length_px + RAY_START_MARGIN_PX
+        radius = BACKGROUND_DEPTH_PATCH_RADIUS
+        candidates = []
+
+        for step in range(RAY_MAX_STEPS):
+            distance_px = start_offset + step * RAY_STEP_PX
+            cx = int(round(mx + ux * distance_px))
+            cy = int(round(my + uy * distance_px))
+            if cx < 0 or cx >= self.frame_w or cy < 0 or cy >= self.frame_h:
+                break
+            if hand_mask[cy, cx]:
+                candidates.clear()
+                continue
+
+            x1 = max(0, cx - radius)
+            x2 = min(self.frame_w, cx + radius + 1)
+            y1 = max(0, cy - radius)
+            y2 = min(self.frame_h, cy + radius + 1)
+            patch = depth_mm[y1:y2, x1:x2]
+            allowed = ~hand_mask[y1:y2, x1:x2]
+            valid = patch[allowed & np.isfinite(patch) & (patch > 0)]
+            allowed_count = int(np.count_nonzero(allowed))
+            valid_ratio = valid.size / max(1, allowed_count)
+            if valid_ratio < BACKGROUND_DEPTH_MIN_VALID_RATIO:
+                candidates.clear()
+                continue
+
+            surface_depth_mm = float(np.median(valid))
+            mad_mm = float(np.median(np.abs(valid - surface_depth_mm)))
+            if mad_mm > BACKGROUND_DEPTH_MAX_MAD_MM:
+                candidates.clear()
+                continue
+
+            # At the fingertip (distance/finger_length == 1), the ray depth
+            # equals the measured hand depth. It grows along the RGB direction
+            # until it reaches a measured background surface.
+            ray_depth_mm = float(hand_depth_mm) * (
+                distance_px / finger_length_px
+            )
+            hit = ray_depth_mm >= surface_depth_mm * (
+                1.0 - BACKGROUND_DEPTH_HIT_TOLERANCE
+            )
+            if not hit:
+                candidates.clear()
+                continue
+
+            if (
+                candidates
+                and abs(surface_depth_mm - candidates[-1]["surface_depth_mm"])
+                > BACKGROUND_DEPTH_MAX_STEP_JUMP_MM
+            ):
+                candidates.clear()
+
+            candidates.append(
+                {
+                    "target": (cx, cy),
+                    "surface_depth_mm": surface_depth_mm,
+                    "ray_depth_mm": ray_depth_mm,
+                    "valid_ratio": valid_ratio,
+                }
+            )
+            if len(candidates) >= BACKGROUND_DEPTH_CONFIRM_STEPS:
+                return candidates[0]
+
+        return None
 
     def _submit_depth_job(self, frame_bgr):
         with self._async_condition:

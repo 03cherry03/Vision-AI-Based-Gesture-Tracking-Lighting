@@ -145,6 +145,9 @@ class PiSmartLightController:
         self.point_hand_depth_mm = None
         self.point_hand_depth_samples_mm = {}
         self.point_hand_depth_valid_ratio = 0.0
+        self.point_surface_depth_mm = None
+        self.point_ray_depth_mm = None
+        self.point_camera_intrinsics = None
         self.point_depth_source = "none"
         self.point_mode_entered_at = 0.0
         self.point_tracking_armed = False
@@ -417,7 +420,13 @@ class PiSmartLightController:
             self.save_state(debounce=True)
             emit("brightness", gesture=gesture, brightness=self.brightness, delta=self.brightness - old)
 
-    def update_point_target(self, frame, hand_landmarks, depth_mm=None):
+    def update_point_target(
+        self,
+        frame,
+        hand_landmarks,
+        depth_mm=None,
+        camera_intrinsics=None,
+    ):
         if not ENABLE_POINTING:
             self.point_status = "disabled"
             return
@@ -445,11 +454,20 @@ class PiSmartLightController:
             self.point_status = "ready"
             emit("pointing_ready", method="sync_fallback")
 
-        target = self.point_estimator.update(frame, hand_landmarks, depth_mm=depth_mm)
+        target = self.point_estimator.update(
+            frame,
+            hand_landmarks,
+            depth_mm=depth_mm,
+            camera_intrinsics=camera_intrinsics,
+        )
         if target.get("async_pending"):
             self.point_status = "tracking_depth_waiting"
         elif target.get("depth_source") == "gemini_metric":
-            self.point_status = "tracking_gemini_depth_masked"
+            self.point_status = (
+                "tracking_gemini_depth_surface"
+                if target.get("used_depth_hit")
+                else "tracking_gemini_depth_waiting"
+            )
         elif target.get("depth_available") is False:
             self.point_status = "tracking_2d_fallback"
         elif target.get("used_depth_hit"):
@@ -469,6 +487,9 @@ class PiSmartLightController:
         self.point_hand_depth_valid_ratio = float(
             target.get("hand_depth_valid_ratio", 0.0)
         )
+        self.point_surface_depth_mm = target.get("surface_depth_mm")
+        self.point_ray_depth_mm = target.get("ray_depth_mm")
+        self.point_camera_intrinsics = target.get("camera_intrinsics")
         self.point_depth_source = target.get("depth_source", "none")
         if target.get("pan_deg") is not None:
             self.preview_pan_deg = float(target["pan_deg"])
@@ -591,6 +612,7 @@ class PiSmartLightController:
         wave_active,
         sample_updated=True,
         depth_mm=None,
+        camera_intrinsics=None,
     ):
         self._update_point_arm(gesture, sample_updated)
         if gesture is None:
@@ -642,6 +664,7 @@ class PiSmartLightController:
                 frame,
                 results.multi_hand_landmarks[0],
                 depth_mm=depth_mm,
+                camera_intrinsics=camera_intrinsics,
             )
         elif gesture in ("THUMBS_UP", "THUMBS_DOWN"):    #0520_v2m   
             self._reset_hold()
@@ -696,6 +719,9 @@ class PiSmartLightController:
             "point_hand_depth_valid_ratio": round(
                 self.point_hand_depth_valid_ratio, 3
             ),
+            "point_surface_depth_mm": self.point_surface_depth_mm,
+            "point_ray_depth_mm": self.point_ray_depth_mm,
+            "point_camera_intrinsics": self.point_camera_intrinsics,
             "yolo_status": self.yolo_status,
             "keep_awake": KEEP_AWAKE,
             "active_timeout_seconds": ACTIVE_TIMEOUT_SECONDS,
