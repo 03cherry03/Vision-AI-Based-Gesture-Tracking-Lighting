@@ -1490,12 +1490,7 @@ def main():
                         and hand_mask is not None
                         and hand_mask.shape == camera_depth_mm.shape
                     ):
-                        masked_pixels = depth_preview[hand_mask].astype(np.float32)
-                        red_overlay = np.empty_like(masked_pixels)
-                        red_overlay[:] = (0, 0, 255)
-                        depth_preview[hand_mask] = (
-                            masked_pixels * 0.55 + red_overlay * 0.45
-                        ).astype(np.uint8)
+                        depth_preview[hand_mask] = (0, 0, 255)
                         hand_depth = controller.point_hand_depth_mm
                         label = (
                             f"HAND EXCLUDED ({hand_depth:.0f} mm sampled)"
@@ -1511,33 +1506,6 @@ def main():
                             (255, 255, 255),
                             2,
                         )
-                        labels = {
-                            "wrist": "W",
-                            "index_mcp": "MCP",
-                            "index_pip": "PIP",
-                            "index_dip": "DIP",
-                            "index_tip": "TIP",
-                        }
-                        for name, short_name in labels.items():
-                            point = controller.point_hand_depth_points_px.get(name)
-                            if point is None:
-                                continue
-                            px, py = int(point[0]), int(point[1])
-                            sample = controller.point_hand_depth_samples_mm.get(name)
-                            quality = controller.point_hand_depth_quality.get(name, {})
-                            reliable = bool(quality.get("reliable", False))
-                            color = (0, 255, 0) if reliable else (0, 165, 255)
-                            cv2.circle(depth_preview, (px, py), 5, color, 2)
-                            value_text = f"{sample:.0f}" if sample is not None else "X"
-                            cv2.putText(
-                                depth_preview,
-                                f"{short_name}:{value_text}",
-                                (px + 6, py - 5),
-                                cv2.FONT_HERSHEY_SIMPLEX,
-                                0.38,
-                                color,
-                                1,
-                            )
                     if controller.point_ray_hit_px is not None:
                         hit_x, hit_y = controller.point_ray_hit_px
                         cv2.circle(

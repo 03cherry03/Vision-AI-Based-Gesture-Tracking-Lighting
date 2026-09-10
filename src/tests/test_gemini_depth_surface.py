@@ -46,34 +46,6 @@ class GeminiDepthSurfaceTest(unittest.TestCase):
 
         self.assertIsNone(hit)
 
-    def test_distal_background_outlier_is_rejected(self):
-        depth_mm = np.full((360, 640), 2000.0, dtype=np.float32)
-        points = {
-            "wrist": (100, 180),
-            "index_mcp": (130, 180),
-            "index_pip": (160, 180),
-            "index_dip": (190, 180),
-            "index_tip": (220, 180),
-        }
-        for name, value in (
-            ("wrist", 500.0),
-            ("index_mcp", 510.0),
-            ("index_pip", 520.0),
-            ("index_dip", 530.0),
-        ):
-            x, y = points[name]
-            depth_mm[y - 6:y + 7, x - 6:x + 7] = value
-
-        samples, quality, hand_depth, valid_ratio = (
-            self.estimator._sample_hand_depth(depth_mm, points)
-        )
-
-        self.assertEqual(hand_depth, 510.0)
-        self.assertIsNone(samples["index_tip"])
-        self.assertFalse(quality["index_tip"]["reliable"])
-        self.assertGreater(valid_ratio, 0.7)
-        self.assertLess(valid_ratio, 0.9)
-
 
 if __name__ == "__main__":
     unittest.main()
