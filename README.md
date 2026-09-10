@@ -140,7 +140,7 @@ python -m src.main
 
 | 변수 | 기본값 | 설명 |
 |---|---|---|
-| `PI_CAMERA_BACKEND` | `rpicam-vid` | `opencv` / `picamera2` / `rpicam-vid` |
+| `PI_CAMERA_BACKEND` | `rpicam-vid` | `orbbec` / `opencv` / `picamera2` / `rpicam-vid` |
 | `PI_CAM_INDEX` | `0` | OpenCV 백엔드일 때 카메라 인덱스 |
 | `PI_FRAME_W` / `PI_FRAME_H` | 640 / 360 | 처리 해상도 |
 | `PI_TARGET_FPS` | 20 | 카메라 목표 fps |
@@ -156,6 +156,20 @@ python -m src.main
 ```bash
 PI_DEBUG=1 PI_SHOW_PREVIEW=1 python -m src.main
 ```
+
+### Orbbec Gemini 2 runtime
+
+After installing OrbbecSDK and `pyorbbecsdk`, select the synchronized RGB-D
+backend explicitly:
+
+```bash
+PI_CAMERA_BACKEND=orbbec PI_ENABLE_FISHEYE=0 PI_SHOW_DEPTH=1 python -m src.main
+```
+
+The Orbbec backend uses aligned color/depth frames. Its defaults can be tuned
+with `PI_ORBBEC_COLOR_W`, `PI_ORBBEC_COLOR_H`, `PI_ORBBEC_DEPTH_W`,
+`PI_ORBBEC_DEPTH_H`, `PI_ORBBEC_TIMEOUT_MS`, and `PI_ORBBEC_HW_ALIGN`.
+Keep `PI_ENABLE_FISHEYE=0` until a Gemini 2-specific calibration is available.
 
 ---
 

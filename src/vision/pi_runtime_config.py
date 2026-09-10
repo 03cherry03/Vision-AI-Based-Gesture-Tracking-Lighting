@@ -28,6 +28,12 @@ CAMERA_BACKEND = os.environ.get("PI_CAMERA_BACKEND", "rpicam-vid").lower()
 FRAME_W = int(os.environ.get("PI_FRAME_W", "640"))
 FRAME_H = int(os.environ.get("PI_FRAME_H", "360"))
 TARGET_FPS = int(os.environ.get("PI_TARGET_FPS", "20"))
+ORBBEC_COLOR_WIDTH = int(os.environ.get("PI_ORBBEC_COLOR_W", "1280"))
+ORBBEC_COLOR_HEIGHT = int(os.environ.get("PI_ORBBEC_COLOR_H", "720"))
+ORBBEC_DEPTH_WIDTH = int(os.environ.get("PI_ORBBEC_DEPTH_W", "640"))
+ORBBEC_DEPTH_HEIGHT = int(os.environ.get("PI_ORBBEC_DEPTH_H", "400"))
+ORBBEC_TIMEOUT_MS = int(os.environ.get("PI_ORBBEC_TIMEOUT_MS", "1000"))
+ORBBEC_PREFER_HARDWARE_ALIGN = os.environ.get("PI_ORBBEC_HW_ALIGN", "1") != "0"
 CAMERA_AF_MODE = os.environ.get("PI_CAMERA_AF_MODE", "continuous").strip().lower()
 if CAMERA_AF_MODE not in {"default", "manual", "auto", "continuous"}:
     CAMERA_AF_MODE = "continuous"

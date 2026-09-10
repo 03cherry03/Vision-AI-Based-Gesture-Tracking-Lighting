@@ -35,6 +35,12 @@ from pi_runtime_config import (
     MP_DET_CONF,
     MP_TRK_CONF,
     MP_MODEL_COMPLEXITY,
+    ORBBEC_COLOR_HEIGHT,
+    ORBBEC_COLOR_WIDTH,
+    ORBBEC_DEPTH_HEIGHT,
+    ORBBEC_DEPTH_WIDTH,
+    ORBBEC_PREFER_HARDWARE_ALIGN,
+    ORBBEC_TIMEOUT_MS,
     ACTIVE_INFERENCE_FPS,
     STANDBY_INFERENCE_FPS,
     POINT_INFERENCE_FPS,
@@ -191,7 +197,9 @@ class LatestFrameCamera:
             if self._frame is None:
                 return False, None
             self._last_read_sequence = self._sequence
-            return True, self._frame.copy()
+            if isinstance(self._frame, np.ndarray):
+                return True, self._frame.copy()
+            return True, self._frame
 
     def release(self):
         self._stopped = True
@@ -204,9 +212,14 @@ class LatestFrameCamera:
 def open_camera():
     backend = CAMERA_BACKEND
     errors = []
-    if backend not in {"auto", "opencv", "picamera2", "rpicam-vid", "libcamera-vid"}:
+    if backend not in {"auto", "orbbec", "opencv", "picamera2", "rpicam-vid", "libcamera-vid"}:
         print(f"[PI] unknown PI_CAMERA_BACKEND={backend!r}; using auto", flush=True)
         backend = "auto"
+
+    if backend == "orbbec":
+        orbbec_camera = open_orbbec_camera(errors)
+        if orbbec_camera is not None:
+            return orbbec_camera
 
     if backend in {"auto", "opencv"}:
         opencv_camera = open_opencv_camera(errors)
@@ -232,6 +245,48 @@ def open_camera():
         flush=True,
     )
     raise RuntimeError("No camera backend produced frames")
+
+
+def open_orbbec_camera(errors):
+    try:
+        from src.vision.orbbec_camera import OrbbecCamera
+
+        camera = OrbbecCamera(
+            color_width=ORBBEC_COLOR_WIDTH,
+            color_height=ORBBEC_COLOR_HEIGHT,
+            depth_width=ORBBEC_DEPTH_WIDTH,
+            depth_height=ORBBEC_DEPTH_HEIGHT,
+            fps=TARGET_FPS,
+            timeout_ms=ORBBEC_TIMEOUT_MS,
+            prefer_hardware_align=ORBBEC_PREFER_HARDWARE_ALIGN,
+        )
+        ok, packet = camera.read()
+        if ok and packet is not None:
+            print(
+                f"[PI] camera opened with Orbbec Gemini 2 "
+                f"align={camera.alignment_mode}",
+                flush=True,
+            )
+            return camera
+        errors.append("orbbec: first_frame=False")
+        camera.release()
+    except Exception as e:
+        errors.append(f"orbbec open failed: {e}")
+    return None
+
+
+def split_camera_frame(captured):
+    """Normalize legacy BGR frames and Orbbec RGB-D packets."""
+    if isinstance(captured, np.ndarray):
+        return captured, None, None
+    color = getattr(captured, "color_bgr", None)
+    if color is None:
+        raise TypeError(f"Unsupported camera frame type: {type(captured).__name__}")
+    return (
+        color,
+        getattr(captured, "depth_mm", None),
+        getattr(captured, "intrinsics", None),
+    )
 
 
 def open_opencv_camera(errors):
@@ -765,6 +820,12 @@ def main():
     }
     controller.start_preloads()
     cap = open_camera()
+    if CAMERA_BACKEND == "orbbec" and controller.undistorter is not None:
+        print(
+            "[PI] warning: PI_ENABLE_FISHEYE=1 uses the existing camera "
+            "calibration; set PI_ENABLE_FISHEYE=0 unless Gemini 2 was calibrated",
+            flush=True,
+        )
     if LATEST_FRAME_CAPTURE:
         cap = LatestFrameCamera(cap)
         print("[PI] latest-frame capture enabled", flush=True)
@@ -855,18 +916,28 @@ def main():
         max_num_hands=1,
     ) as roi_hands:
         while True:
-            ok, frame = cap.read()
+            ok, captured = cap.read()
             if not ok:
                 print("[PI] camera read failed", flush=True)
                 time.sleep(0.1)
                 continue
 
+            frame, camera_depth_mm, camera_intrinsics = split_camera_frame(captured)
+
             frame = cv2.resize(frame, (FRAME_W, FRAME_H))
+            if camera_depth_mm is not None:
+                camera_depth_mm = cv2.resize(
+                    camera_depth_mm,
+                    (FRAME_W, FRAME_H),
+                    interpolation=cv2.INTER_NEAREST,
+                )
             # fisheye 보정을 mirror 이전에 적용 (캘리브레이션이 원본 방향 기준)
             if controller.undistorter is not None:
                 frame = controller.undistorter.undistort(frame)
             if MIRROR:
                 frame = cv2.flip(frame, 1)
+                if camera_depth_mm is not None:
+                    camera_depth_mm = cv2.flip(camera_depth_mm, 1)
             clean_frame = frame.copy()
 
             now = time.time()
@@ -1252,6 +1323,13 @@ def main():
                         "hand_bbox_width_px": hand_bbox,
                         "fine_gesture_allowed": fine_gesture_allowed,
                         "tick_gesture_allowed": tick_gesture_allowed,
+                        "camera_depth_available": camera_depth_mm is not None,
+                        "camera_depth_valid_ratio": (
+                            round(float(np.count_nonzero(camera_depth_mm > 0)) / camera_depth_mm.size, 3)
+                            if camera_depth_mm is not None and camera_depth_mm.size
+                            else 0.0
+                        ),
+                        "camera_intrinsics_available": camera_intrinsics is not None,
                     }
                 )
 
@@ -1285,6 +1363,11 @@ def main():
                         "gesture_zone_used": last_state.get("gesture_zone_used", False),
                         "yolo_roi_used": last_state.get("yolo_roi_used", False),
                         "motion_roi_used": last_state.get("motion_roi_used", False),
+                        "camera_depth_available": last_state.get("camera_depth_available", False),
+                        "camera_depth_valid_ratio": last_state.get("camera_depth_valid_ratio", 0.0),
+                        "camera_intrinsics_available": last_state.get(
+                            "camera_intrinsics_available", False
+                        ),
                         "roi_box": last_state.get("roi_box"),
                         "roi_scale": last_state.get("roi_scale", 1),
                         "index_open": last_state.get("index_open", False),
@@ -1327,8 +1410,24 @@ def main():
                     preview_window_sized = True
                 cv2.imshow(PREVIEW_WINDOW_NAME, display_preview)
 
-            if SHOW_DEPTH and controller.point_depth_map is not None:
-                depth_preview = depth_map_to_preview(controller.point_depth_map)
+            display_depth = (
+                camera_depth_mm
+                if camera_depth_mm is not None
+                else controller.point_depth_map
+            )
+            if SHOW_DEPTH and display_depth is not None:
+                if camera_depth_mm is not None:
+                    valid = camera_depth_mm > 0
+                    depth_visual = np.zeros_like(camera_depth_mm, dtype=np.float32)
+                    if np.any(valid):
+                        near, far = np.percentile(camera_depth_mm[valid], (2, 98))
+                        if far > near:
+                            depth_visual[valid] = 1.0 - np.clip(
+                                (camera_depth_mm[valid] - near) / (far - near), 0.0, 1.0
+                            )
+                    depth_preview = depth_map_to_preview(depth_visual)
+                else:
+                    depth_preview = depth_map_to_preview(display_depth)
                 if not depth_window_sized:
                     cv2.namedWindow(DEPTH_WINDOW_NAME, cv2.WINDOW_NORMAL)
                     height, width = depth_preview.shape[:2]
