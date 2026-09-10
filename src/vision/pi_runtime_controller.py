@@ -13,6 +13,7 @@ from pi_runtime_config import (
     ACTIVE_TIMEOUT_SECONDS,
     BRIGHTNESS_UPDATE_INTERVAL,
     BRIGHTNESS_STEP,
+    CAMERA_BACKEND,
     COMMAND_HOLD_SECONDS,
     ENABLE_FISHEYE_UNDISTORT,
     ENABLE_POINTING,
@@ -140,6 +141,11 @@ class PiSmartLightController:
         self.point_ray_tip_px = None
         self.point_ray_hit_px = None
         self.point_depth_map = None
+        self.point_hand_mask = None
+        self.point_hand_depth_mm = None
+        self.point_hand_depth_samples_mm = {}
+        self.point_hand_depth_valid_ratio = 0.0
+        self.point_depth_source = "none"
         self.point_mode_entered_at = 0.0
         self.point_tracking_armed = False
         self.point_arm_history = deque(maxlen=POINT_ARM_WINDOW)
@@ -257,6 +263,7 @@ class PiSmartLightController:
                 FRAME_W,
                 FRAME_H,
                 ray_mode=POINT_RAY_MODE,
+                enable_midas=CAMERA_BACKEND != "orbbec",
                 **self._pointing_intrinsics(),
             )
             self.point_status = "ready"
@@ -410,7 +417,7 @@ class PiSmartLightController:
             self.save_state(debounce=True)
             emit("brightness", gesture=gesture, brightness=self.brightness, delta=self.brightness - old)
 
-    def update_point_target(self, frame, hand_landmarks):
+    def update_point_target(self, frame, hand_landmarks, depth_mm=None):
         if not ENABLE_POINTING:
             self.point_status = "disabled"
             return
@@ -432,14 +439,17 @@ class PiSmartLightController:
                 FRAME_W,
                 FRAME_H,
                 ray_mode=POINT_RAY_MODE,
+                enable_midas=CAMERA_BACKEND != "orbbec",
                 **self._pointing_intrinsics(),
             )
             self.point_status = "ready"
             emit("pointing_ready", method="sync_fallback")
 
-        target = self.point_estimator.update(frame, hand_landmarks)
+        target = self.point_estimator.update(frame, hand_landmarks, depth_mm=depth_mm)
         if target.get("async_pending"):
             self.point_status = "tracking_depth_waiting"
+        elif target.get("depth_source") == "gemini_metric":
+            self.point_status = "tracking_gemini_depth_masked"
         elif target.get("depth_available") is False:
             self.point_status = "tracking_2d_fallback"
         elif target.get("used_depth_hit"):
@@ -453,6 +463,13 @@ class PiSmartLightController:
         self.point_ray_tip_px = target.get("ray_tip_px")
         self.point_ray_hit_px = target.get("raw_target")
         self.point_depth_map = target.get("depth_map")
+        self.point_hand_mask = target.get("hand_mask")
+        self.point_hand_depth_mm = target.get("hand_depth_mm")
+        self.point_hand_depth_samples_mm = target.get("hand_depth_samples_mm", {})
+        self.point_hand_depth_valid_ratio = float(
+            target.get("hand_depth_valid_ratio", 0.0)
+        )
+        self.point_depth_source = target.get("depth_source", "none")
         if target.get("pan_deg") is not None:
             self.preview_pan_deg = float(target["pan_deg"])
             self.preview_tilt_deg = float(target["tilt_deg"])
@@ -566,7 +583,15 @@ class PiSmartLightController:
                 window=len(self.point_arm_history),
             )
 
-    def apply_gesture(self, gesture, results, frame, wave_active, sample_updated=True):
+    def apply_gesture(
+        self,
+        gesture,
+        results,
+        frame,
+        wave_active,
+        sample_updated=True,
+        depth_mm=None,
+    ):
         self._update_point_arm(gesture, sample_updated)
         if gesture is None:
             if not self.mode_switch_armed:
@@ -613,7 +638,11 @@ class PiSmartLightController:
                 return None
             if not self.point_tracking_armed:
                 return gesture
-            self.update_point_target(frame, results.multi_hand_landmarks[0])
+            self.update_point_target(
+                frame,
+                results.multi_hand_landmarks[0],
+                depth_mm=depth_mm,
+            )
         elif gesture in ("THUMBS_UP", "THUMBS_DOWN"):    #0520_v2m   
             self._reset_hold()
             if not self.point_mode:              # ← 추가: 포인트모드 중엔 밝기 변경 무시
@@ -661,6 +690,12 @@ class PiSmartLightController:
             "point_tracking_armed": self.point_tracking_armed,
             "point_arm_hits": sum(self.point_arm_history),
             "point_status": self.point_status,
+            "point_depth_source": self.point_depth_source,
+            "point_hand_depth_mm": self.point_hand_depth_mm,
+            "point_hand_depth_samples_mm": self.point_hand_depth_samples_mm,
+            "point_hand_depth_valid_ratio": round(
+                self.point_hand_depth_valid_ratio, 3
+            ),
             "yolo_status": self.yolo_status,
             "keep_awake": KEEP_AWAKE,
             "active_timeout_seconds": ACTIVE_TIMEOUT_SECONDS,

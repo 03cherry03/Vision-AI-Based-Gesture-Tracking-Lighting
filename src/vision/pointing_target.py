@@ -35,6 +35,15 @@ DEPTH_RESULT_MAX_AGE_SECONDS = max(
     float(os.environ.get("PI_DEPTH_RESULT_MAX_AGE", "0.75")),
 )
 TORCH_NUM_THREADS = max(1, int(os.environ.get("PI_TORCH_NUM_THREADS", "2")))
+HAND_DEPTH_SAMPLE_RADIUS = max(
+    1, int(os.environ.get("PI_HAND_DEPTH_SAMPLE_RADIUS", "5"))
+)
+HAND_DEPTH_MIN_VALID_RATIO = min(
+    1.0, max(0.0, float(os.environ.get("PI_HAND_DEPTH_MIN_VALID_RATIO", "0.35")))
+)
+HAND_MASK_DILATE_PX = max(
+    0, int(os.environ.get("PI_HAND_DEPTH_MASK_DILATE_PX", "18"))
+)
 
 
 class DepthEstimator:
@@ -254,6 +263,7 @@ class PointingTargetEstimator:
         cx=None,
         cy=None,
         ray_mode=None,
+        enable_midas=True,
     ):
         self.frame_w = frame_w
         self.frame_h = frame_h
@@ -270,14 +280,17 @@ class PointingTargetEstimator:
 
         self.depth_est = None
         self.depth_error = None
-        try:
-            self.depth_est = DepthEstimator()
-        except ModuleNotFoundError as e:
-            self.depth_error = str(e)
-            print(f"[Pointing] MiDaS disabled, using 2D ray fallback: {e}")
-        except Exception as e:
-            self.depth_error = str(e)
-            print(f"[Pointing] MiDaS disabled, using 2D ray fallback: {e}")
+        if enable_midas:
+            try:
+                self.depth_est = DepthEstimator()
+            except ModuleNotFoundError as e:
+                self.depth_error = str(e)
+                print(f"[Pointing] MiDaS disabled, using 2D ray fallback: {e}")
+            except Exception as e:
+                self.depth_error = str(e)
+                print(f"[Pointing] MiDaS disabled, using 2D ray fallback: {e}")
+        else:
+            print("[Pointing] Gemini metric depth selected; MiDaS disabled")
 
         self.tracker = MotorAngleTracker(self.cam_fx, self.cam_fy, self.cx, self.cy)
         self.depth_map = None
@@ -330,12 +343,20 @@ class PointingTargetEstimator:
             "depth_map": None,
             "async_pending": self.async_depth,
             "ray_mode": self.ray_mode,
+            "depth_source": "midas" if self.depth_est is not None else "none",
+            "hand_depth_mm": None,
+            "hand_depth_samples_mm": {},
+            "hand_depth_valid_ratio": 0.0,
+            "hand_mask": None,
         }
 
-    def update(self, frame_bgr, hand_landmarks):
+    def update(self, frame_bgr, hand_landmarks, depth_mm=None):
         self.frame_count += 1
         points = self._key_points(hand_landmarks.landmark)
         ray_start, ray_tip = self._ray_segment(points)
+
+        if depth_mm is not None:
+            return self._update_from_metric_depth(depth_mm, hand_landmarks, points, ray_start, ray_tip)
 
         if self.depth_est is None:
             raw_target = self._project_to_screen_edge(ray_start, ray_tip)
@@ -375,6 +396,106 @@ class PointingTargetEstimator:
         result["async_pending"] = False
         self._last_result = result
         return result
+
+    def _update_from_metric_depth(
+        self, depth_mm, hand_landmarks, points, ray_start, ray_tip
+    ):
+        """Keep hand depth, but remove the hand from the background-search map.
+
+        Stage 3 intentionally does not perform background ray intersection yet.
+        The masked metric map produced here is the input for that next stage.
+        """
+        depth_mm = np.asarray(depth_mm, dtype=np.float32)
+        if depth_mm.shape != (self.frame_h, self.frame_w):
+            depth_mm = cv2.resize(
+                depth_mm,
+                (self.frame_w, self.frame_h),
+                interpolation=cv2.INTER_NEAREST,
+            )
+
+        hand_mask = self._hand_mask(hand_landmarks.landmark)
+        samples, hand_depth_mm, valid_ratio = self._sample_hand_depth(
+            depth_mm, points
+        )
+        background_depth_mm = depth_mm.copy()
+        background_depth_mm[hand_mask] = 0.0
+
+        # Background collision is introduced in stage 4. Until then, retain
+        # the proven RGB ray-to-screen fallback while exposing real hand depth.
+        raw_target = self._project_to_screen_edge(ray_start, ray_tip)
+        result = self.tracker.update(raw_target, True)
+        result.update(
+            {
+                "raw_target": raw_target,
+                "ray_start_px": ray_start,
+                "ray_tip_px": ray_tip,
+                "calibrated": True,
+                "depth_available": True,
+                "used_depth_hit": False,
+                "hit_method": "2d_fallback_gemini_depth_masked",
+                "depth_error": None,
+                "depth_map": background_depth_mm,
+                "async_pending": False,
+                "ray_mode": self.ray_mode,
+                "depth_source": "gemini_metric",
+                "hand_depth_mm": hand_depth_mm,
+                "hand_depth_samples_mm": samples,
+                "hand_depth_valid_ratio": valid_ratio,
+                "hand_mask": hand_mask,
+            }
+        )
+        self.depth_map = background_depth_mm
+        self._last_result = result
+        return result
+
+    def _hand_mask(self, landmarks):
+        pixels = np.asarray(
+            [
+                (
+                    int(np.clip(lm.x, 0.0, 1.0) * (self.frame_w - 1)),
+                    int(np.clip(lm.y, 0.0, 1.0) * (self.frame_h - 1)),
+                )
+                for lm in landmarks
+            ],
+            dtype=np.int32,
+        )
+        mask = np.zeros((self.frame_h, self.frame_w), dtype=np.uint8)
+        if len(pixels) >= 3:
+            cv2.fillConvexPoly(mask, cv2.convexHull(pixels), 255)
+        if HAND_MASK_DILATE_PX > 0:
+            kernel_size = HAND_MASK_DILATE_PX * 2 + 1
+            kernel = cv2.getStructuringElement(
+                cv2.MORPH_ELLIPSE, (kernel_size, kernel_size)
+            )
+            mask = cv2.dilate(mask, kernel)
+        return mask.astype(bool)
+
+    def _sample_hand_depth(self, depth_mm, points):
+        samples = {}
+        valid_count = 0
+        total_count = 0
+        for name in ("wrist", "index_mcp", "index_pip", "index_dip", "index_tip"):
+            x, y = points[name]
+            radius = HAND_DEPTH_SAMPLE_RADIUS
+            patch = depth_mm[
+                max(0, y - radius):min(self.frame_h, y + radius + 1),
+                max(0, x - radius):min(self.frame_w, x + radius + 1),
+            ]
+            valid = patch[np.isfinite(patch) & (patch > 0)]
+            valid_count += int(valid.size)
+            total_count += int(patch.size)
+            samples[name] = float(np.median(valid)) if valid.size else None
+
+        valid_ratio = valid_count / max(1, total_count)
+        reliable = [
+            value for value in samples.values() if value is not None
+        ]
+        hand_depth = (
+            float(np.median(reliable))
+            if reliable and valid_ratio >= HAND_DEPTH_MIN_VALID_RATIO
+            else None
+        )
+        return samples, hand_depth, valid_ratio
 
     def _submit_depth_job(self, frame_bgr):
         with self._async_condition:

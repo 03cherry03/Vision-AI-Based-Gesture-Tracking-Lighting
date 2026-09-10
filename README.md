@@ -150,7 +150,7 @@ python -m src.main
 | `PI_DEBUG` | 0 | STATE JSON + 후보 로그 |
 | `PI_ENABLE_FISHEYE` | 1 | fisheye 왜곡 보정 |
 | `PI_SERVO_PAN_SIGN` | +1 | 카메라↔서보 pan 방향 일치 시 +1, 반대면 -1 |
-| `PI_SERVO_TILT_SIGN` | -1 | tilt 부호. 짐벌 조립 방향에 따라 조정 |
+| `PI_SERVO_TILT_SIGN` | +1 | tilt 부호. 짐벌 조립 방향에 따라 조정 |
 
 디버그 실행 예:
 ```bash
@@ -170,6 +170,12 @@ The Orbbec backend uses aligned color/depth frames. Its defaults can be tuned
 with `PI_ORBBEC_COLOR_W`, `PI_ORBBEC_COLOR_H`, `PI_ORBBEC_DEPTH_W`,
 `PI_ORBBEC_DEPTH_H`, `PI_ORBBEC_TIMEOUT_MS`, and `PI_ORBBEC_HW_ALIGN`.
 Keep `PI_ENABLE_FISHEYE=0` until a Gemini 2-specific calibration is available.
+
+During point mode, Gemini metric depth is sampled at the wrist and index-finger
+landmarks before the hand region is masked out of the background depth map.
+`PI_HAND_DEPTH_SAMPLE_RADIUS`, `PI_HAND_DEPTH_MIN_VALID_RATIO`, and
+`PI_HAND_DEPTH_MASK_DILATE_PX` tune that stage. With `PI_SHOW_DEPTH=1`, the
+excluded hand area is shown in red and the sampled hand distance is shown in mm.
 
 ---
 

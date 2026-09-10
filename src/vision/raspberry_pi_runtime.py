@@ -636,6 +636,7 @@ def print_status(payload):
         f"MODE={payload['mode']} "
         f"gesture={payload['gesture'] or '-'} hand={payload['hand_detected']} "
         f"point_mode={payload['point_mode']} point={payload['point_status']} "
+        f"depth={payload.get('point_depth_source', 'none')} "
         f"pan={payload['pan_deg']:+.1f} tilt={payload['tilt_deg']:+.1f} "
         f"fps={payload['fps']}",
         flush=True,
@@ -663,7 +664,7 @@ def print_status(payload):
 
 def draw_preview_overlay(frame, controller, fps, gesture, hand_detected, bbox, state):
     status = "STANDBY" if controller.standby else "ACTIVE"
-    panel_h = 150
+    panel_h = 174
     panel = frame.copy()
     panel[:] = (18, 18, 18)
     lines = [
@@ -672,6 +673,7 @@ def draw_preview_overlay(frame, controller, fps, gesture, hand_detected, bbox, s
         f"mode:{controller.mode} point_mode:{controller.point_mode} point:{controller.point_status} yolo:{controller.yolo_status}",
         f"wave:{state.get('wave_active')} span:{state.get('wave_motion_span', 0):.1f} turns:{state.get('wave_motion_turns', 0)} hits:{state.get('wave_open_palm_hits', 0)}/{state.get('wave_confirm_min_hits', 0)}",
         f"pan:{controller.preview_pan_deg:+.1f} tilt:{controller.preview_tilt_deg:+.1f} std:{controller.point_std_px:.0f}px",
+        f"depth:{controller.point_depth_source} hand_depth:{controller.point_hand_depth_mm if controller.point_hand_depth_mm is not None else '-'}mm valid:{controller.point_hand_depth_valid_ratio:.0%}",
     ]
     for i, text in enumerate(lines):
         cv2.putText(panel, text, (18, 30 + i * 24), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 0), 2)
@@ -684,6 +686,7 @@ def draw_preview_overlay(frame, controller, fps, gesture, hand_detected, bbox, s
             "tracking_depth_waiting",
             "tracking_depth_fallback",
             "tracking_2d_fallback",
+            "tracking_gemini_depth_masked",
             "locked",
         )
     )
@@ -892,6 +895,7 @@ def main():
     last_hand_detected = False
     last_hand_bbox = 0
     last_gesture_state = controller.recognizer.extract_full_state(None)
+    last_display_gesture = None
     
     last_roi_fallback_time = 0.0
     skip_counter = 0
@@ -954,6 +958,7 @@ def main():
                 skip_counter = 0
                 
             gesture = None
+            display_gesture = last_display_gesture if last_hand_detected else None
             results = last_results
             results_updated = False
             hand_detected = last_hand_detected
@@ -1221,12 +1226,19 @@ def main():
                         else controller.recognizer.extract_full_state(None)
                     )
                     last_gesture_state = state.copy()
+                    display_gesture = state.get("gesture") if hand_detected else None
+                    last_display_gesture = display_gesture
                 else:
                     state = (
                         last_gesture_state.copy()
                         if isinstance(last_gesture_state, dict)
                         else controller.recognizer.extract_full_state(None)
                     )
+
+                    # Keep showing the last recognized pose on capture frames
+                    # where inference was intentionally skipped. Commands are
+                    # still suppressed below, so this cannot replay actions.
+                    display_gesture = state.get("gesture") if hand_detected else None
 
                     # Do not replay most gestures on skipped frames,
                     # because brightness/mode commands could repeat.
@@ -1297,6 +1309,7 @@ def main():
                     clean_frame,
                     is_shaking,
                     sample_updated=results_updated,
+                    depth_mm=camera_depth_mm,
                 )
                 dispatch_hardware(led, controller, gesture, hw_state)
 
@@ -1304,7 +1317,7 @@ def main():
                     {
                         "python_standby": controller.standby,
                         "point_mode_enabled": controller.point_mode,
-                        "keep_awake_for_testing": controller.state_payload(fps, gesture, hand_detected, hand_bbox, is_shaking)["keep_awake"],
+                        "keep_awake_for_testing": controller.state_payload(fps, display_gesture, hand_detected, hand_bbox, is_shaking)["keep_awake"],
                         "active_hold_remaining": max(0.0, controller.active_until - time.time()) if not controller.standby else 0.0,
                         "motion_score": motion_score,
                         "wave_motion_active": is_shaking,
@@ -1337,6 +1350,9 @@ def main():
             else:
                 controller.update_activity_timeout(False)
                 last_state = state
+                if not hand_detected:
+                    last_display_gesture = None
+                    display_gesture = None
                 
             # Draw cached landmarks on every preview frame to reduce flicker.
             if SHOW_PREVIEW or (SAVE_VIDEO and SAVE_VIDEO_OVERLAY):
@@ -1351,7 +1367,13 @@ def main():
                     )
             if now - last_status >= STATUS_INTERVAL:
                 last_status = now
-                payload = controller.state_payload(fps, gesture, hand_detected, hand_bbox, last_state.get("wave_motion_active", False))
+                payload = controller.state_payload(
+                    fps,
+                    display_gesture,
+                    hand_detected,
+                    hand_bbox,
+                    last_state.get("wave_motion_active", False),
+                )
                 payload.update(
                     {
                         "processing_mode": last_state.get("processing_mode"),
@@ -1393,7 +1415,15 @@ def main():
 
             preview = None
             if SHOW_PREVIEW or (SAVE_VIDEO and SAVE_VIDEO_OVERLAY):
-                preview = draw_preview_overlay(frame.copy(), controller, fps, gesture, hand_detected, hand_bbox, last_state)
+                preview = draw_preview_overlay(
+                    frame.copy(),
+                    controller,
+                    fps,
+                    display_gesture,
+                    hand_detected,
+                    hand_bbox,
+                    last_state,
+                )
 
             if SAVE_VIDEO:
                 video_frame = preview if SAVE_VIDEO_OVERLAY else frame
@@ -1426,6 +1456,28 @@ def main():
                                 (camera_depth_mm[valid] - near) / (far - near), 0.0, 1.0
                             )
                     depth_preview = depth_map_to_preview(depth_visual)
+                    hand_mask = controller.point_hand_mask
+                    if (
+                        controller.point_mode
+                        and hand_mask is not None
+                        and hand_mask.shape == camera_depth_mm.shape
+                    ):
+                        depth_preview[hand_mask] = (0, 0, 255)
+                        hand_depth = controller.point_hand_depth_mm
+                        label = (
+                            f"HAND EXCLUDED ({hand_depth:.0f} mm sampled)"
+                            if hand_depth is not None
+                            else "HAND EXCLUDED (depth unreliable)"
+                        )
+                        cv2.putText(
+                            depth_preview,
+                            label,
+                            (12, 28),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.6,
+                            (255, 255, 255),
+                            2,
+                        )
                 else:
                     depth_preview = depth_map_to_preview(display_depth)
                 if not depth_window_sized:
