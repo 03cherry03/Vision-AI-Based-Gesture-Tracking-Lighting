@@ -39,6 +39,7 @@ from pi_runtime_config import (
     MIN_BRIGHTNESS,
     PRELOAD_POINTING,
     PRELOAD_YOLO,
+    RESTORE_SERVO_POSITION,
     STATE_FILE,
     YOLO_MODEL_PATH,
 )
@@ -189,17 +190,42 @@ class PiSmartLightController:
             self.power = False
             self.brightness = 0
             self.mode = data.get("mode", self.mode)
-            self.pan_deg = float(data.get("pan_deg", self.pan_deg))
-            self.tilt_deg = float(data.get("tilt_deg", self.tilt_deg))
-            self.preview_pan_deg = self.pan_deg
-            self.preview_tilt_deg = self.tilt_deg
-            self.point_target = data.get("point_target", self.point_target)
-            # 서보 절대 각도 복원 (저장된 값이 없으면 90° 중앙 유지) 0521_v2m
-            self.servo_pan_deg = float(data.get("servo_pan_deg", self.servo_pan_deg))
-            self.servo_tilt_deg = float(data.get("servo_tilt_deg", self.servo_tilt_deg))
-            if self.servo is not None:
-                self.servo.move_to(self.servo_pan_deg, self.servo_tilt_deg)
-            emit("state_loaded", file=STATE_FILE, saved_brightness=self.saved_brightness, mode=self.mode)
+            if RESTORE_SERVO_POSITION:
+                self.pan_deg = float(data.get("pan_deg", self.pan_deg))
+                self.tilt_deg = float(data.get("tilt_deg", self.tilt_deg))
+                self.preview_pan_deg = self.pan_deg
+                self.preview_tilt_deg = self.tilt_deg
+                self.point_target = data.get("point_target", self.point_target)
+                self.servo_pan_deg = float(
+                    data.get("servo_pan_deg", self.servo_pan_deg)
+                )
+                self.servo_tilt_deg = float(
+                    data.get("servo_tilt_deg", self.servo_tilt_deg)
+                )
+                if self.servo is not None:
+                    self.servo.move_to(
+                        self.servo_pan_deg,
+                        self.servo_tilt_deg,
+                    )
+            else:
+                # ServoController is already at calibrated CENTER. Do not
+                # replace it with a stale target from pi_state.json.
+                self.pan_deg = 0.0
+                self.tilt_deg = 0.0
+                self.preview_pan_deg = 0.0
+                self.preview_tilt_deg = 0.0
+                self.point_target = None
+                self.servo_pan_deg = SERVO_PAN_CENTER
+                self.servo_tilt_deg = SERVO_TILT_CENTER
+            emit(
+                "state_loaded",
+                file=STATE_FILE,
+                saved_brightness=self.saved_brightness,
+                mode=self.mode,
+                servo_position_restored=RESTORE_SERVO_POSITION,
+                servo_pan=self.servo_pan_deg,
+                servo_tilt=self.servo_tilt_deg,
+            )
         except Exception as e:
             emit("state_load_error", file=STATE_FILE, error=str(e))
 

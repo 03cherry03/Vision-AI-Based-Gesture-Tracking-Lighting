@@ -161,6 +161,8 @@ SERVO_TILT_SIGN = int(os.environ.get("PI_SERVO_TILT_SIGN", "1"))
 # Pointing calibration. CENTER is the servo angle that points light at camera center.
 SERVO_PAN_CENTER = float(os.environ.get("PI_SERVO_PAN_CENTER", "90.0"))
 SERVO_TILT_CENTER = float(os.environ.get("PI_SERVO_TILT_CENTER", "135.0"))
+# Start from calibrated CENTER unless resuming a previous point is explicit.
+RESTORE_SERVO_POSITION = os.environ.get("PI_RESTORE_SERVO_POSITION", "0") == "1"
 
 POINT_PAN_GAIN = float(os.environ.get("PI_POINT_PAN_GAIN", "1.0"))
 POINT_TILT_GAIN = float(os.environ.get("PI_POINT_TILT_GAIN", "1.0"))

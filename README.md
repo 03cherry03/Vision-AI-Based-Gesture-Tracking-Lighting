@@ -151,6 +151,7 @@ python -m src.main
 | `PI_ENABLE_FISHEYE` | 1 | fisheye 왜곡 보정 |
 | `PI_SERVO_PAN_SIGN` | +1 | 카메라↔서보 pan 방향 일치 시 +1, 반대면 -1 |
 | `PI_SERVO_TILT_SIGN` | +1 | tilt 부호. 짐벌 조립 방향에 따라 조정 |
+| `PI_RESTORE_SERVO_POSITION` | 0 | `0`: 시작 시 CENTER, `1`: 이전 잠금 위치 복원 |
 
 디버그 실행 예:
 ```bash
