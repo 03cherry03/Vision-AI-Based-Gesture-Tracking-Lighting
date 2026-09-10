@@ -1,0 +1,307 @@
+[09/10 14:20:33.743105][info][6898][HostTimestampProvider.cpp:36] Update clock type to: realtime(0)
+[09/10 14:20:33.831835][info][6898][LinuxUsbPal.cpp:334] Create PollingDeviceWatcher!
+[09/10 14:20:33.831850][info][6898][DeviceManager.cpp:25] Current found device(s): (1)
+[09/10 14:20:33.831853][info][6898][DeviceManager.cpp:34] 	- Name: Gemini2, PID: 0x0670, SN/ID: AY6966300RZ, Connection: USB3.0
+[09/10 14:20:33.831855][info][6898][DeviceManager.cpp:463] Enable net device enumeration: true
+[09/10 14:20:34.834696][info][6898][DeviceManager.cpp:25] Current device(s) list: (1)
+[09/10 14:20:34.834716][info][6898][DeviceManager.cpp:34] 	- Name: Gemini2, PID: 0x0670, SN/ID: AY6966300RZ, Connection: USB3.0
+[09/10 14:20:34.834800][warning][6898][PropertyServer.cpp:120] [AY6966300RZ] Not added to property map, property not found in OBPropertyBaseInfoMap, id=108
+[09/10 14:20:34.834832][warning][6898][PropertyServer.cpp:120] [AY6966300RZ] Not added to property map, property not found in OBPropertyBaseInfoMap, id=4035
+[09/10 14:20:34.834849][warning][6898][PropertyServer.cpp:120] [AY6966300RZ] Not added to property map, property not found in OBPropertyBaseInfoMap, id=5003
+[09/10 14:20:34.858281][info][6898][DeviceManager.cpp:200] Device created successfully! Name: Gemini 2, PID: 0x0670, SN/ID: AY6966300RZ FW: 1.4.92
+[09/10 14:20:34.858313][info][6898][Pipeline.cpp:54] [AY6966300RZ] Pipeline created with device: {name: Gemini 2, sn: AY6966300RZ}, @0x55559A850330
+[09/10 14:20:34.889752][info][6898][Pipeline.cpp:228] [AY6966300RZ] Check and set config done!
+[09/10 14:20:34.890683][info][6898][Pipeline.cpp:266] [AY6966300RZ] Try to start streams!
+[09/10 14:20:34.890699][info][6898][VideoSensor.cpp:61] [AY6966300RZ] Try to start stream: {type: Color, format: MJPG, width: 1920, height: 1080, fps: 30}
+[09/10 14:20:34.890705][info][6898][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STOPPED to STARTING@Color
+[09/10 14:20:34.890709][info][6898][VideoSensor.cpp:130] [AY6966300RZ] Start backend stream: {type: Color, format: MJPG, width: 1920, height: 1080, fps: 30}
+[09/10 14:20:34.897161][info][6898][VideoSensor.cpp:61] [AY6966300RZ] Try to start stream: {type: Depth, format: Y16, width: 1280, height: 800, fps: 30}
+[09/10 14:20:34.897173][info][6898][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STOPPED to STARTING@Depth
+[09/10 14:20:34.897178][info][6898][VideoSensor.cpp:130] [AY6966300RZ] Start backend stream: {type: Depth, format: Y16, width: 1280, height: 800, fps: 30}
+[09/10 14:20:34.900143][warning][6922][VideoSensor.cpp:226] [AY6966300RZ] This frame will be dropped because the data size does not match the expectation! size=16180, expected=2048000 @Depth
+[09/10 14:20:34.900382][info][6898][Pipeline.cpp:293] [AY6966300RZ] Start streams done!
+[09/10 14:20:34.900385][info][6898][Pipeline.cpp:250] [AY6966300RZ] Pipeline start done!
+[09/10 14:20:34.975963][info][6922][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STARTING to STREAMING@Depth
+[09/10 14:20:35.030823][warning][6920][VideoSensor.cpp:214] [AY6966300RZ] This frame will be dropped because jpg format verification failure! @Color
+[09/10 14:20:35.120351][info][6920][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STARTING to STREAMING@Color
+[09/10 14:20:36.290829][warning][6925][Pipeline.cpp:324] [AY6966300RZ] Output frameset queue is full, drop oldest frameset!
+[09/10 14:20:37.108596][info][6898][Pipeline.cpp:367] [AY6966300RZ] Try to stop pipeline!
+[09/10 14:20:37.108613][info][6898][Pipeline.cpp:343] [AY6966300RZ] Try to stop streams!
+[09/10 14:20:37.108630][info][6898][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STREAMING to STOPPING@Depth
+[09/10 14:20:37.115493][info][6898][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STOPPING to STOPPED@Depth
+[09/10 14:20:37.115560][info][6898][Pipeline.cpp:357] [AY6966300RZ] Sensor stream stopped, sensorType=Depth
+[09/10 14:20:37.115568][info][6898][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STREAMING to STOPPING@Color
+[09/10 14:20:37.123493][info][6898][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STOPPING to STOPPED@Color
+[09/10 14:20:37.123586][info][6898][Pipeline.cpp:357] [AY6966300RZ] Sensor stream stopped, sensorType=Color
+[09/10 14:20:37.123588][info][6898][Pipeline.cpp:363] [AY6966300RZ] Stop streams done!
+[09/10 14:20:37.124493][info][6898][Pipeline.cpp:393] [AY6966300RZ] Stop pipeline done!
+[09/10 14:20:37.142767][info][6898][Pipeline.cpp:65] [AY6966300RZ] Pipeline destroyed! @0x55559A850330
+[09/10 14:20:37.142925][info][6898][SensorBase.cpp:53] [AY6966300RZ] SensorBase is destroyed
+[09/10 14:20:37.150023][info][6898][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[09/10 14:20:37.150028][info][6898][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[09/10 14:20:37.150113][info][6898][SensorBase.cpp:53] [AY6966300RZ] SensorBase is destroyed
+[09/10 14:20:37.152308][info][6898][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[09/10 14:20:37.152323][info][6898][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[09/10 20:42:11.853932][info][2302][HostTimestampProvider.cpp:36] Update clock type to: realtime(0)
+[09/10 20:42:11.945359][info][2302][LinuxUsbPal.cpp:334] Create PollingDeviceWatcher!
+[09/10 20:42:11.945371][info][2302][DeviceManager.cpp:25] Current found device(s): (1)
+[09/10 20:42:11.945373][info][2302][DeviceManager.cpp:34] 	- Name: Gemini2, PID: 0x0670, SN/ID: AY6966300RZ, Connection: USB3.0
+[09/10 20:42:11.945376][info][2302][DeviceManager.cpp:463] Enable net device enumeration: true
+[09/10 20:42:12.945813][info][2302][DeviceManager.cpp:25] Current device(s) list: (1)
+[09/10 20:42:12.945830][info][2302][DeviceManager.cpp:34] 	- Name: Gemini2, PID: 0x0670, SN/ID: AY6966300RZ, Connection: USB3.0
+[09/10 20:42:12.951018][warning][2302][PropertyServer.cpp:120] [AY6966300RZ] Not added to property map, property not found in OBPropertyBaseInfoMap, id=108
+[09/10 20:42:12.951040][warning][2302][PropertyServer.cpp:120] [AY6966300RZ] Not added to property map, property not found in OBPropertyBaseInfoMap, id=4035
+[09/10 20:42:12.951059][warning][2302][PropertyServer.cpp:120] [AY6966300RZ] Not added to property map, property not found in OBPropertyBaseInfoMap, id=5003
+[09/10 20:42:12.982288][info][2302][DeviceManager.cpp:200] Device created successfully! Name: Gemini 2, PID: 0x0670, SN/ID: AY6966300RZ FW: 1.4.92
+[09/10 20:42:12.982346][info][2302][Pipeline.cpp:54] [AY6966300RZ] Pipeline created with device: {name: Gemini 2, sn: AY6966300RZ}, @0x55566E154330
+[09/10 20:42:13.019055][info][2302][Pipeline.cpp:228] [AY6966300RZ] Check and set config done!
+[09/10 20:42:13.020000][info][2302][Pipeline.cpp:266] [AY6966300RZ] Try to start streams!
+[09/10 20:42:13.020013][info][2302][VideoSensor.cpp:61] [AY6966300RZ] Try to start stream: {type: Color, format: MJPG, width: 1920, height: 1080, fps: 30}
+[09/10 20:42:13.020019][info][2302][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STOPPED to STARTING@Color
+[09/10 20:42:13.020024][info][2302][VideoSensor.cpp:130] [AY6966300RZ] Start backend stream: {type: Color, format: MJPG, width: 1920, height: 1080, fps: 30}
+[09/10 20:42:13.026625][info][2302][VideoSensor.cpp:61] [AY6966300RZ] Try to start stream: {type: Depth, format: Y16, width: 1280, height: 800, fps: 30}
+[09/10 20:42:13.026644][info][2302][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STOPPED to STARTING@Depth
+[09/10 20:42:13.026651][info][2302][VideoSensor.cpp:130] [AY6966300RZ] Start backend stream: {type: Depth, format: Y16, width: 1280, height: 800, fps: 30}
+[09/10 20:42:13.029691][info][2302][Pipeline.cpp:293] [AY6966300RZ] Start streams done!
+[09/10 20:42:13.029696][info][2302][Pipeline.cpp:250] [AY6966300RZ] Pipeline start done!
+[09/10 20:42:13.120553][info][2325][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STARTING to STREAMING@Depth
+[09/10 20:42:13.173115][info][2323][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STARTING to STREAMING@Color
+[09/10 20:42:13.598983][warning][2327][Pipeline.cpp:324] [AY6966300RZ] Output frameset queue is full, drop oldest frameset!
+[09/10 20:42:16.632111][warning][2335][Pipeline.cpp:324] [AY6966300RZ] Output frameset queue is full, drop oldest frameset! [**11 logs in 3033ms, last: 20:42:16.439686**]
+[09/10 20:42:18.131445][info][2325][VideoSensor.cpp:180] [AY6966300RZ] Depth backend frame callback, frameRate=30.133705fps
+[09/10 20:42:18.142255][info][2327][SensorBase.cpp:405] [AY6966300RZ] Depth Streaming... frameRate=30.133705fps
+[09/10 20:42:18.205325][info][2323][VideoSensor.cpp:180] [AY6966300RZ] Color backend frame callback, frameRate=29.809221fps
+[09/10 20:42:18.205451][info][2329][SensorBase.cpp:405] [AY6966300RZ] Color Streaming... frameRate=29.821072fps
+[09/10 20:42:22.685026][warning][2327][Pipeline.cpp:324] [AY6966300RZ] Output frameset queue is full, drop oldest frameset! [**26 logs in 6052ms**]
+[09/10 20:42:23.141004][info][2325][VideoSensor.cpp:180] [AY6966300RZ] Depth backend frame callback, frameRate=29.946098fps
+[09/10 20:42:23.150425][info][2327][SensorBase.cpp:405] [AY6966300RZ] Depth Streaming... frameRate=29.952078fps
+[09/10 20:42:23.215637][info][2323][VideoSensor.cpp:180] [AY6966300RZ] Color backend frame callback, frameRate=29.940119fps
+[09/10 20:42:23.215716][info][2329][SensorBase.cpp:405] [AY6966300RZ] Color Streaming... frameRate=29.940119fps
+[09/10 20:42:28.152609][info][2325][VideoSensor.cpp:180] [AY6966300RZ] Depth backend frame callback, frameRate=29.928171fps
+[09/10 20:42:28.166059][info][2327][SensorBase.cpp:405] [AY6966300RZ] Depth Streaming... frameRate=29.910271fps
+[09/10 20:42:28.226217][info][2323][VideoSensor.cpp:180] [AY6966300RZ] Color backend frame callback, frameRate=29.940119fps
+[09/10 20:42:28.226392][info][2329][SensorBase.cpp:405] [AY6966300RZ] Color Streaming... frameRate=29.940119fps
+[09/10 20:42:33.162442][info][2325][VideoSensor.cpp:180] [AY6966300RZ] Depth backend frame callback, frameRate=29.946098fps
+[09/10 20:42:33.171568][info][2327][SensorBase.cpp:405] [AY6966300RZ] Depth Streaming... frameRate=29.970030fps
+[09/10 20:42:33.237723][info][2323][VideoSensor.cpp:180] [AY6966300RZ] Color backend frame callback, frameRate=29.728651fps
+[09/10 20:42:33.237817][info][2329][SensorBase.cpp:405] [AY6966300RZ] Color Streaming... frameRate=29.728651fps
+[09/10 20:42:34.809506][warning][2327][Pipeline.cpp:324] [AY6966300RZ] Output frameset queue is full, drop oldest frameset! [**54 logs in 12124ms**]
+[09/10 20:42:38.171800][info][2325][VideoSensor.cpp:180] [AY6966300RZ] Depth backend frame callback, frameRate=29.946098fps
+[09/10 20:42:38.180024][info][2327][SensorBase.cpp:405] [AY6966300RZ] Depth Streaming... frameRate=29.946098fps
+[09/10 20:42:38.247396][info][2323][VideoSensor.cpp:180] [AY6966300RZ] Color backend frame callback, frameRate=29.946098fps
+[09/10 20:42:38.247503][info][2329][SensorBase.cpp:405] [AY6966300RZ] Color Streaming... frameRate=29.946098fps
+[09/10 20:42:43.183400][info][2325][VideoSensor.cpp:180] [AY6966300RZ] Depth backend frame callback, frameRate=29.928171fps
+[09/10 20:42:43.195979][info][2327][SensorBase.cpp:405] [AY6966300RZ] Depth Streaming... frameRate=29.910271fps
+[09/10 20:42:43.257063][info][2323][VideoSensor.cpp:180] [AY6966300RZ] Color backend frame callback, frameRate=29.940119fps
+[09/10 20:42:43.257192][info][2329][SensorBase.cpp:405] [AY6966300RZ] Color Streaming... frameRate=29.940119fps
+[09/10 20:42:48.192224][info][2325][VideoSensor.cpp:180] [AY6966300RZ] Depth backend frame callback, frameRate=29.946098fps
+[09/10 20:42:48.198579][info][2327][SensorBase.cpp:405] [AY6966300RZ] Depth Streaming... frameRate=29.982012fps
+[09/10 20:42:48.268654][info][2323][VideoSensor.cpp:180] [AY6966300RZ] Color backend frame callback, frameRate=29.135900fps
+[09/10 20:42:48.268709][info][2329][SensorBase.cpp:405] [AY6966300RZ] Color Streaming... frameRate=29.135900fps
+[09/10 20:42:53.203332][info][2325][VideoSensor.cpp:180] [AY6966300RZ] Depth backend frame callback, frameRate=29.934143fps
+[09/10 20:42:53.213486][info][2327][SensorBase.cpp:405] [AY6966300RZ] Depth Streaming... frameRate=29.910271fps
+[09/10 20:42:53.279474][info][2323][VideoSensor.cpp:180] [AY6966300RZ] Color backend frame callback, frameRate=29.135900fps
+[09/10 20:42:53.279540][info][2329][SensorBase.cpp:405] [AY6966300RZ] Color Streaming... frameRate=29.135900fps
+[09/10 20:42:58.213454][info][2325][VideoSensor.cpp:180] [AY6966300RZ] Depth backend frame callback, frameRate=29.940119fps
+[09/10 20:42:58.223175][info][2327][SensorBase.cpp:405] [AY6966300RZ] Depth Streaming... frameRate=29.946098fps
+[09/10 20:42:58.289461][info][2323][VideoSensor.cpp:180] [AY6966300RZ] Color backend frame callback, frameRate=28.542913fps
+[09/10 20:42:58.289619][info][2329][SensorBase.cpp:405] [AY6966300RZ] Color Streaming... frameRate=28.542913fps
+[09/10 20:42:59.043436][warning][2371][Pipeline.cpp:324] [AY6966300RZ] Output frameset queue is full, drop oldest frameset! [**70 logs in 24233ms, last: 20:42:57.153924**]
+[09/10 20:43:03.222857][info][2325][VideoSensor.cpp:180] [AY6966300RZ] Depth backend frame callback, frameRate=29.946098fps
+[09/10 20:43:03.229183][info][2327][SensorBase.cpp:405] [AY6966300RZ] Depth Streaming... frameRate=29.964043fps
+[09/10 20:43:03.311748][info][2323][VideoSensor.cpp:180] [AY6966300RZ] Color backend frame callback, frameRate=29.868580fps
+[09/10 20:43:03.311883][info][2329][SensorBase.cpp:405] [AY6966300RZ] Color Streaming... frameRate=29.868580fps
+[09/10 20:43:08.232761][info][2325][VideoSensor.cpp:180] [AY6966300RZ] Depth backend frame callback, frameRate=29.940119fps
+[09/10 20:43:08.244120][info][2327][SensorBase.cpp:405] [AY6966300RZ] Depth Streaming... frameRate=29.910271fps
+[09/10 20:43:08.342977][info][2323][VideoSensor.cpp:180] [AY6966300RZ] Color backend frame callback, frameRate=29.417610fps
+[09/10 20:43:08.343144][info][2329][SensorBase.cpp:405] [AY6966300RZ] Color Streaming... frameRate=29.417610fps
+[09/10 20:43:13.243197][info][2325][VideoSensor.cpp:180] [AY6966300RZ] Depth backend frame callback, frameRate=29.940119fps
+[09/10 20:43:13.253100][info][2327][SensorBase.cpp:405] [AY6966300RZ] Depth Streaming... frameRate=29.946098fps
+[09/10 20:43:13.352153][info][2323][VideoSensor.cpp:180] [AY6966300RZ] Color backend frame callback, frameRate=29.946098fps
+[09/10 20:43:13.352234][info][2329][SensorBase.cpp:405] [AY6966300RZ] Color Streaming... frameRate=29.946098fps
+[09/10 20:43:18.253210][info][2325][VideoSensor.cpp:180] [AY6966300RZ] Depth backend frame callback, frameRate=29.940119fps
+[09/10 20:43:18.263352][info][2327][SensorBase.cpp:405] [AY6966300RZ] Depth Streaming... frameRate=29.940119fps
+[09/10 20:43:18.362871][info][2323][VideoSensor.cpp:180] [AY6966300RZ] Color backend frame callback, frameRate=29.934143fps
+[09/10 20:43:18.363320][info][2329][SensorBase.cpp:405] [AY6966300RZ] Color Streaming... frameRate=29.934143fps
+[09/10 20:43:23.263014][info][2325][VideoSensor.cpp:180] [AY6966300RZ] Depth backend frame callback, frameRate=29.940119fps
+[09/10 20:43:23.272311][info][2327][SensorBase.cpp:405] [AY6966300RZ] Depth Streaming... frameRate=29.946098fps
+[09/10 20:43:23.373015][info][2323][VideoSensor.cpp:180] [AY6966300RZ] Color backend frame callback, frameRate=29.940119fps
+[09/10 20:43:23.373223][info][2329][SensorBase.cpp:405] [AY6966300RZ] Color Streaming... frameRate=29.940119fps
+[09/10 20:43:28.273902][info][2325][VideoSensor.cpp:180] [AY6966300RZ] Depth backend frame callback, frameRate=29.934143fps
+[09/10 20:43:28.288042][info][2327][SensorBase.cpp:405] [AY6966300RZ] Depth Streaming... frameRate=29.904308fps
+[09/10 20:43:28.382600][info][2323][VideoSensor.cpp:180] [AY6966300RZ] Color backend frame callback, frameRate=29.946098fps
+[09/10 20:43:28.382686][info][2329][SensorBase.cpp:405] [AY6966300RZ] Color Streaming... frameRate=29.940119fps
+[09/10 20:43:33.283978][info][2325][VideoSensor.cpp:180] [AY6966300RZ] Depth backend frame callback, frameRate=29.940119fps
+[09/10 20:43:33.295884][info][2327][SensorBase.cpp:405] [AY6966300RZ] Depth Streaming... frameRate=29.952078fps
+[09/10 20:43:33.392656][info][2323][VideoSensor.cpp:180] [AY6966300RZ] Color backend frame callback, frameRate=29.934143fps
+[09/10 20:43:33.392824][info][2329][SensorBase.cpp:405] [AY6966300RZ] Color Streaming... frameRate=29.940119fps
+[09/10 20:43:38.293892][info][2325][VideoSensor.cpp:180] [AY6966300RZ] Depth backend frame callback, frameRate=29.940119fps
+[09/10 20:43:38.310621][info][2327][SensorBase.cpp:405] [AY6966300RZ] Depth Streaming... frameRate=29.910271fps
+[09/10 20:43:38.403803][info][2323][VideoSensor.cpp:180] [AY6966300RZ] Color backend frame callback, frameRate=29.934143fps
+[09/10 20:43:38.403851][info][2329][SensorBase.cpp:405] [AY6966300RZ] Color Streaming... frameRate=29.934143fps
+[09/10 20:43:43.304851][info][2325][VideoSensor.cpp:180] [AY6966300RZ] Depth backend frame callback, frameRate=29.934143fps
+[09/10 20:43:43.320115][info][2327][SensorBase.cpp:405] [AY6966300RZ] Depth Streaming... frameRate=29.946098fps
+[09/10 20:43:43.412826][info][2323][VideoSensor.cpp:180] [AY6966300RZ] Color backend frame callback, frameRate=29.946098fps
+[09/10 20:43:43.412922][info][2329][SensorBase.cpp:405] [AY6966300RZ] Color Streaming... frameRate=29.946098fps
+[09/10 20:43:47.194503][warning][2327][Pipeline.cpp:324] [AY6966300RZ] Output frameset queue is full, drop oldest frameset! [**237 logs in 48151ms**]
+[09/10 20:43:48.313349][info][2325][VideoSensor.cpp:180] [AY6966300RZ] Depth backend frame callback, frameRate=29.952078fps
+[09/10 20:43:48.323347][info][2327][SensorBase.cpp:405] [AY6966300RZ] Depth Streaming... frameRate=29.982012fps
+[09/10 20:43:48.422907][info][2323][VideoSensor.cpp:180] [AY6966300RZ] Color backend frame callback, frameRate=29.940119fps
+[09/10 20:43:48.423056][info][2329][SensorBase.cpp:405] [AY6966300RZ] Color Streaming... frameRate=29.940119fps
+[09/10 20:43:53.323885][info][2325][VideoSensor.cpp:180] [AY6966300RZ] Depth backend frame callback, frameRate=29.934143fps
+[09/10 20:43:53.338182][info][2327][SensorBase.cpp:405] [AY6966300RZ] Depth Streaming... frameRate=29.910271fps
+[09/10 20:43:53.432830][info][2323][VideoSensor.cpp:180] [AY6966300RZ] Color backend frame callback, frameRate=29.940119fps
+[09/10 20:43:53.432921][info][2329][SensorBase.cpp:405] [AY6966300RZ] Color Streaming... frameRate=29.940119fps
+[09/10 20:43:58.334204][info][2325][VideoSensor.cpp:180] [AY6966300RZ] Depth backend frame callback, frameRate=29.940119fps
+[09/10 20:43:58.349191][info][2327][SensorBase.cpp:405] [AY6966300RZ] Depth Streaming... frameRate=29.934143fps
+[09/10 20:43:58.442887][info][2323][VideoSensor.cpp:180] [AY6966300RZ] Color backend frame callback, frameRate=29.940119fps
+[09/10 20:43:58.442961][info][2329][SensorBase.cpp:405] [AY6966300RZ] Color Streaming... frameRate=29.940119fps
+[09/10 20:44:03.343438][info][2325][VideoSensor.cpp:180] [AY6966300RZ] Depth backend frame callback, frameRate=29.940119fps
+[09/10 20:44:03.353231][info][2327][SensorBase.cpp:405] [AY6966300RZ] Depth Streaming... frameRate=29.976019fps
+[09/10 20:44:03.452932][info][2323][VideoSensor.cpp:180] [AY6966300RZ] Color backend frame callback, frameRate=29.940119fps
+[09/10 20:44:03.453054][info][2329][SensorBase.cpp:405] [AY6966300RZ] Color Streaming... frameRate=29.940119fps
+[09/10 20:44:08.354161][info][2325][VideoSensor.cpp:180] [AY6966300RZ] Depth backend frame callback, frameRate=29.940119fps
+[09/10 20:44:08.364272][info][2327][SensorBase.cpp:405] [AY6966300RZ] Depth Streaming... frameRate=29.934143fps
+[09/10 20:44:08.462881][info][2323][VideoSensor.cpp:180] [AY6966300RZ] Color backend frame callback, frameRate=29.940119fps
+[09/10 20:44:08.463038][info][2329][SensorBase.cpp:405] [AY6966300RZ] Color Streaming... frameRate=29.940119fps
+[09/10 20:44:13.364946][info][2325][VideoSensor.cpp:180] [AY6966300RZ] Depth backend frame callback, frameRate=29.934143fps
+[09/10 20:44:13.377635][info][2327][SensorBase.cpp:405] [AY6966300RZ] Depth Streaming... frameRate=29.916235fps
+[09/10 20:44:13.472795][info][2323][VideoSensor.cpp:180] [AY6966300RZ] Color backend frame callback, frameRate=29.940119fps
+[09/10 20:44:13.472928][info][2329][SensorBase.cpp:405] [AY6966300RZ] Color Streaming... frameRate=29.940119fps
+[09/10 20:44:18.373382][info][2325][VideoSensor.cpp:180] [AY6966300RZ] Depth backend frame callback, frameRate=29.946098fps
+[09/10 20:44:18.386802][info][2327][SensorBase.cpp:405] [AY6966300RZ] Depth Streaming... frameRate=29.946098fps
+[09/10 20:44:18.482559][info][2323][VideoSensor.cpp:180] [AY6966300RZ] Color backend frame callback, frameRate=29.940119fps
+[09/10 20:44:18.482609][info][2329][SensorBase.cpp:405] [AY6966300RZ] Color Streaming... frameRate=29.940119fps
+[09/10 20:44:23.384675][info][2325][VideoSensor.cpp:180] [AY6966300RZ] Depth backend frame callback, frameRate=29.934143fps
+[09/10 20:44:23.398150][info][2327][SensorBase.cpp:405] [AY6966300RZ] Depth Streaming... frameRate=29.928171fps
+[09/10 20:44:23.492642][info][2323][VideoSensor.cpp:180] [AY6966300RZ] Color backend frame callback, frameRate=29.940119fps
+[09/10 20:44:23.492721][info][2329][SensorBase.cpp:405] [AY6966300RZ] Color Streaming... frameRate=29.940119fps
+[09/10 20:44:28.393866][info][2325][VideoSensor.cpp:180] [AY6966300RZ] Depth backend frame callback, frameRate=29.946098fps
+[09/10 20:44:28.403980][info][2327][SensorBase.cpp:405] [AY6966300RZ] Depth Streaming... frameRate=29.970030fps
+[09/10 20:44:28.506436][info][2323][VideoSensor.cpp:180] [AY6966300RZ] Color backend frame callback, frameRate=29.916235fps
+[09/10 20:44:28.506609][info][2329][SensorBase.cpp:405] [AY6966300RZ] Color Streaming... frameRate=29.916235fps
+[09/10 20:44:33.403360][info][2325][VideoSensor.cpp:180] [AY6966300RZ] Depth backend frame callback, frameRate=29.940119fps
+[09/10 20:44:33.412881][info][2327][SensorBase.cpp:405] [AY6966300RZ] Depth Streaming... frameRate=29.946098fps
+[09/10 20:44:33.512527][info][2323][VideoSensor.cpp:180] [AY6966300RZ] Color backend frame callback, frameRate=29.964043fps
+[09/10 20:44:33.512609][info][2329][SensorBase.cpp:405] [AY6966300RZ] Color Streaming... frameRate=29.964043fps
+[09/10 20:44:38.413193][info][2325][VideoSensor.cpp:180] [AY6966300RZ] Depth backend frame callback, frameRate=29.940119fps
+[09/10 20:44:38.422769][info][2327][SensorBase.cpp:405] [AY6966300RZ] Depth Streaming... frameRate=29.940119fps
+[09/10 20:44:38.522485][info][2323][VideoSensor.cpp:180] [AY6966300RZ] Color backend frame callback, frameRate=29.940119fps
+[09/10 20:44:38.522563][info][2329][SensorBase.cpp:405] [AY6966300RZ] Color Streaming... frameRate=29.940119fps
+[09/10 20:44:43.423983][info][2325][VideoSensor.cpp:180] [AY6966300RZ] Depth backend frame callback, frameRate=29.934143fps
+[09/10 20:44:43.438043][info][2327][SensorBase.cpp:405] [AY6966300RZ] Depth Streaming... frameRate=29.904308fps
+[09/10 20:44:43.533779][info][2323][VideoSensor.cpp:180] [AY6966300RZ] Color backend frame callback, frameRate=29.928171fps
+[09/10 20:44:43.533902][info][2329][SensorBase.cpp:405] [AY6966300RZ] Color Streaming... frameRate=29.928171fps
+[09/10 20:44:46.852253][info][2302][Pipeline.cpp:367] [AY6966300RZ] Try to stop pipeline!
+[09/10 20:44:46.852298][info][2302][Pipeline.cpp:343] [AY6966300RZ] Try to stop streams!
+[09/10 20:44:46.852324][info][2302][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STREAMING to STOPPING@Depth
+[09/10 20:44:46.860236][info][2302][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STOPPING to STOPPED@Depth
+[09/10 20:44:46.860298][info][2302][Pipeline.cpp:357] [AY6966300RZ] Sensor stream stopped, sensorType=Depth
+[09/10 20:44:46.860306][info][2302][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STREAMING to STOPPING@Color
+[09/10 20:44:46.870990][info][2302][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STOPPING to STOPPED@Color
+[09/10 20:44:46.871064][info][2302][Pipeline.cpp:357] [AY6966300RZ] Sensor stream stopped, sensorType=Color
+[09/10 20:44:46.871065][info][2302][Pipeline.cpp:363] [AY6966300RZ] Stop streams done!
+[09/10 20:44:46.871977][info][2302][Pipeline.cpp:393] [AY6966300RZ] Stop pipeline done!
+[09/10 20:44:46.890356][info][2302][Pipeline.cpp:65] [AY6966300RZ] Pipeline destroyed! @0x55566E154330
+[09/10 20:44:46.890493][info][2302][SensorBase.cpp:53] [AY6966300RZ] SensorBase is destroyed
+[09/10 20:44:46.897613][info][2302][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[09/10 20:44:46.897618][info][2302][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[09/10 20:44:46.897699][info][2302][SensorBase.cpp:53] [AY6966300RZ] SensorBase is destroyed
+[09/10 20:44:46.899208][info][2302][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[09/10 20:44:46.899212][info][2302][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[09/10 20:44:46.903975][warning][2469][Pipeline.cpp:324] [AY6966300RZ] Output frameset queue is full, drop oldest frameset! [**318 logs in 59709ms, last: 20:44:46.779516**]
+[09/10 20:48:29.736079][info][3012][HostTimestampProvider.cpp:36] Update clock type to: realtime(0)
+[09/10 20:48:29.826155][info][3012][LinuxUsbPal.cpp:334] Create PollingDeviceWatcher!
+[09/10 20:48:29.826172][info][3012][DeviceManager.cpp:25] Current found device(s): (1)
+[09/10 20:48:29.826175][info][3012][DeviceManager.cpp:34] 	- Name: Gemini2, PID: 0x0670, SN/ID: AY6966300RZ, Connection: USB3.0
+[09/10 20:48:29.826178][info][3012][DeviceManager.cpp:463] Enable net device enumeration: true
+[09/10 20:48:30.829057][info][3012][DeviceManager.cpp:25] Current device(s) list: (1)
+[09/10 20:48:30.829075][info][3012][DeviceManager.cpp:34] 	- Name: Gemini2, PID: 0x0670, SN/ID: AY6966300RZ, Connection: USB3.0
+[09/10 20:48:30.829174][warning][3012][PropertyServer.cpp:120] [AY6966300RZ] Not added to property map, property not found in OBPropertyBaseInfoMap, id=108
+[09/10 20:48:30.829210][warning][3012][PropertyServer.cpp:120] [AY6966300RZ] Not added to property map, property not found in OBPropertyBaseInfoMap, id=4035
+[09/10 20:48:30.829231][warning][3012][PropertyServer.cpp:120] [AY6966300RZ] Not added to property map, property not found in OBPropertyBaseInfoMap, id=5003
+[09/10 20:48:30.852640][info][3012][DeviceManager.cpp:200] Device created successfully! Name: Gemini 2, PID: 0x0670, SN/ID: AY6966300RZ FW: 1.4.92
+[09/10 20:48:30.852684][info][3012][Pipeline.cpp:54] [AY6966300RZ] Pipeline created with device: {name: Gemini 2, sn: AY6966300RZ}, @0x55566B015790
+[09/10 20:48:30.884096][info][3012][Pipeline.cpp:228] [AY6966300RZ] Check and set config done!
+[09/10 20:48:30.884992][info][3012][Pipeline.cpp:266] [AY6966300RZ] Try to start streams!
+[09/10 20:48:30.885007][info][3012][VideoSensor.cpp:61] [AY6966300RZ] Try to start stream: {type: Color, format: MJPG, width: 1920, height: 1080, fps: 30}
+[09/10 20:48:30.885013][info][3012][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STOPPED to STARTING@Color
+[09/10 20:48:30.885017][info][3012][VideoSensor.cpp:130] [AY6966300RZ] Start backend stream: {type: Color, format: MJPG, width: 1920, height: 1080, fps: 30}
+[09/10 20:48:30.891385][warning][3033][VideoSensor.cpp:214] [AY6966300RZ] This frame will be dropped because jpg format verification failure! @Color
+[09/10 20:48:30.891684][info][3012][VideoSensor.cpp:61] [AY6966300RZ] Try to start stream: {type: Depth, format: Y16, width: 1280, height: 800, fps: 30}
+[09/10 20:48:30.891695][info][3012][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STOPPED to STARTING@Depth
+[09/10 20:48:30.891700][info][3012][VideoSensor.cpp:130] [AY6966300RZ] Start backend stream: {type: Depth, format: Y16, width: 1280, height: 800, fps: 30}
+[09/10 20:48:30.894751][info][3012][Pipeline.cpp:293] [AY6966300RZ] Start streams done!
+[09/10 20:48:30.894755][info][3012][Pipeline.cpp:250] [AY6966300RZ] Pipeline start done!
+[09/10 20:48:30.950173][warning][3035][VideoSensor.cpp:226] [AY6966300RZ] This frame will be dropped because the data size does not match the expectation! size=16360, expected=2048000 @Depth
+[09/10 20:48:31.014397][info][3035][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STARTING to STREAMING@Depth
+[09/10 20:48:31.090130][info][3033][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STARTING to STREAMING@Color
+[09/10 20:48:31.497785][warning][3039][Pipeline.cpp:324] [AY6966300RZ] Output frameset queue is full, drop oldest frameset!
+[09/10 20:48:33.950782][warning][3037][VideoSensor.cpp:226] [AY6966300RZ] This frame will be dropped because the data size does not match the expectation! size=32716, expected=2048000 @Depth [**51 logs in 3000ms, last: 20:48:30.983586**]
+[09/10 20:48:33.998981][warning][3038][VideoSensor.cpp:214] [AY6966300RZ] This frame will be dropped because jpg format verification failure! @Color [**7 logs in 3107ms, last: 20:48:31.056717**]
+[09/10 20:48:34.572926][warning][3039][Pipeline.cpp:324] [AY6966300RZ] Output frameset queue is full, drop oldest frameset! [**25 logs in 3075ms**]
+[09/10 20:48:35.905682][info][3033][VideoSensor.cpp:180] [AY6966300RZ] Color backend frame callback, frameRate=30.514559fps
+[09/10 20:48:35.959270][info][3035][VideoSensor.cpp:180] [AY6966300RZ] Depth backend frame callback, frameRate=40.127773fps
+[09/10 20:48:36.035962][info][3039][SensorBase.cpp:405] [AY6966300RZ] Depth Streaming... frameRate=30.145739fps
+[09/10 20:48:36.100684][info][3041][SensorBase.cpp:405] [AY6966300RZ] Color Streaming... frameRate=30.145739fps
+[09/10 20:48:39.533259][info][3012][Pipeline.cpp:367] [AY6966300RZ] Try to stop pipeline!
+[09/10 20:48:39.533306][info][3012][Pipeline.cpp:343] [AY6966300RZ] Try to stop streams!
+[09/10 20:48:39.533350][info][3012][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STREAMING to STOPPING@Depth
+[09/10 20:48:39.540810][info][3012][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STOPPING to STOPPED@Depth
+[09/10 20:48:39.542657][info][3012][Pipeline.cpp:357] [AY6966300RZ] Sensor stream stopped, sensorType=Depth
+[09/10 20:48:39.542669][info][3012][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STREAMING to STOPPING@Color
+[09/10 20:48:39.552298][info][3012][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STOPPING to STOPPED@Color
+[09/10 20:48:39.552367][info][3012][Pipeline.cpp:357] [AY6966300RZ] Sensor stream stopped, sensorType=Color
+[09/10 20:48:39.552368][info][3012][Pipeline.cpp:363] [AY6966300RZ] Stop streams done!
+[09/10 20:48:39.553293][info][3012][Pipeline.cpp:393] [AY6966300RZ] Stop pipeline done!
+[09/10 20:48:39.570647][info][3012][Pipeline.cpp:65] [AY6966300RZ] Pipeline destroyed! @0x55566B015790
+[09/10 20:48:39.570781][info][3012][SensorBase.cpp:53] [AY6966300RZ] SensorBase is destroyed
+[09/10 20:48:39.577846][info][3012][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[09/10 20:48:39.577854][info][3012][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[09/10 20:48:39.577960][info][3012][SensorBase.cpp:53] [AY6966300RZ] SensorBase is destroyed
+[09/10 20:48:39.579587][info][3012][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[09/10 20:48:39.579592][info][3012][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[09/10 20:48:56.774820][info][3095][HostTimestampProvider.cpp:36] Update clock type to: realtime(0)
+[09/10 20:48:56.866170][info][3095][LinuxUsbPal.cpp:334] Create PollingDeviceWatcher!
+[09/10 20:48:56.866186][info][3095][DeviceManager.cpp:25] Current found device(s): (1)
+[09/10 20:48:56.866189][info][3095][DeviceManager.cpp:34] 	- Name: Gemini2, PID: 0x0670, SN/ID: AY6966300RZ, Connection: USB3.0
+[09/10 20:48:56.866192][info][3095][DeviceManager.cpp:463] Enable net device enumeration: true
+[09/10 20:48:57.872775][info][3095][DeviceManager.cpp:25] Current device(s) list: (1)
+[09/10 20:48:57.872793][info][3095][DeviceManager.cpp:34] 	- Name: Gemini2, PID: 0x0670, SN/ID: AY6966300RZ, Connection: USB3.0
+[09/10 20:48:57.872878][warning][3095][PropertyServer.cpp:120] [AY6966300RZ] Not added to property map, property not found in OBPropertyBaseInfoMap, id=108
+[09/10 20:48:57.872915][warning][3095][PropertyServer.cpp:120] [AY6966300RZ] Not added to property map, property not found in OBPropertyBaseInfoMap, id=4035
+[09/10 20:48:57.872939][warning][3095][PropertyServer.cpp:120] [AY6966300RZ] Not added to property map, property not found in OBPropertyBaseInfoMap, id=5003
+[09/10 20:48:57.896296][info][3095][DeviceManager.cpp:200] Device created successfully! Name: Gemini 2, PID: 0x0670, SN/ID: AY6966300RZ FW: 1.4.92
+[09/10 20:48:57.896331][info][3095][Pipeline.cpp:54] [AY6966300RZ] Pipeline created with device: {name: Gemini 2, sn: AY6966300RZ}, @0x5555B982D790
+[09/10 20:48:57.928279][info][3095][Pipeline.cpp:228] [AY6966300RZ] Check and set config done!
+[09/10 20:48:57.929188][info][3095][Pipeline.cpp:266] [AY6966300RZ] Try to start streams!
+[09/10 20:48:57.929207][info][3095][VideoSensor.cpp:61] [AY6966300RZ] Try to start stream: {type: Color, format: MJPG, width: 1920, height: 1080, fps: 30}
+[09/10 20:48:57.929213][info][3095][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STOPPED to STARTING@Color
+[09/10 20:48:57.929217][info][3095][VideoSensor.cpp:130] [AY6966300RZ] Start backend stream: {type: Color, format: MJPG, width: 1920, height: 1080, fps: 30}
+[09/10 20:48:57.935679][info][3095][VideoSensor.cpp:61] [AY6966300RZ] Try to start stream: {type: Depth, format: Y16, width: 1280, height: 800, fps: 30}
+[09/10 20:48:57.935691][info][3095][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STOPPED to STARTING@Depth
+[09/10 20:48:57.935696][info][3095][VideoSensor.cpp:130] [AY6966300RZ] Start backend stream: {type: Depth, format: Y16, width: 1280, height: 800, fps: 30}
+[09/10 20:48:57.938787][info][3095][Pipeline.cpp:293] [AY6966300RZ] Start streams done!
+[09/10 20:48:57.938791][info][3095][Pipeline.cpp:250] [AY6966300RZ] Pipeline start done!
+[09/10 20:48:58.004286][warning][3118][VideoSensor.cpp:226] [AY6966300RZ] This frame will be dropped because the data size does not match the expectation! size=16292, expected=2048000 @Depth
+[09/10 20:48:58.035123][info][3118][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STARTING to STREAMING@Depth
+[09/10 20:48:58.077511][info][3116][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STARTING to STREAMING@Color
+[09/10 20:48:59.221266][warning][3120][Pipeline.cpp:324] [AY6966300RZ] Output frameset queue is full, drop oldest frameset!
+[09/10 20:49:00.322682][info][3095][Pipeline.cpp:367] [AY6966300RZ] Try to stop pipeline!
+[09/10 20:49:00.322702][info][3095][Pipeline.cpp:343] [AY6966300RZ] Try to stop streams!
+[09/10 20:49:00.322722][info][3095][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STREAMING to STOPPING@Depth
+[09/10 20:49:00.330724][info][3095][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STOPPING to STOPPED@Depth
+[09/10 20:49:00.330793][info][3095][Pipeline.cpp:357] [AY6966300RZ] Sensor stream stopped, sensorType=Depth
+[09/10 20:49:00.330801][info][3095][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STREAMING to STOPPING@Color
+[09/10 20:49:00.339121][info][3095][SensorBase.cpp:216] [AY6966300RZ] Stream state changed from STOPPING to STOPPED@Color
+[09/10 20:49:00.339187][info][3095][Pipeline.cpp:357] [AY6966300RZ] Sensor stream stopped, sensorType=Color
+[09/10 20:49:00.339188][info][3095][Pipeline.cpp:363] [AY6966300RZ] Stop streams done!
+[09/10 20:49:00.340088][info][3095][Pipeline.cpp:393] [AY6966300RZ] Stop pipeline done!
+[09/10 20:49:00.357638][info][3095][Pipeline.cpp:65] [AY6966300RZ] Pipeline destroyed! @0x5555B982D790
+[09/10 20:49:00.357787][info][3095][SensorBase.cpp:53] [AY6966300RZ] SensorBase is destroyed
+[09/10 20:49:00.364865][info][3095][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[09/10 20:49:00.364871][info][3095][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[09/10 20:49:00.364956][info][3095][SensorBase.cpp:53] [AY6966300RZ] SensorBase is destroyed
+[09/10 20:49:00.367505][info][3095][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[09/10 20:49:00.367513][info][3095][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[09/10 20:49:00.893901][warning][3128][Pipeline.cpp:324] [AY6966300RZ] Output frameset queue is full, drop oldest frameset! [**7 logs in 1672ms, last: 20:49:00.289547**]
